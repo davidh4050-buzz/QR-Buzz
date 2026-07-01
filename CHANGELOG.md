@@ -8,6 +8,7 @@
 - Added QR code model, repository, and shortcode generation
 - Added QR management admin screen for create, edit, pause, delete, and list workflows
 - Added local PNG QR generation for tracking URLs
+- Added admin diagnostics when bundled QR dependencies are missing
 - Added redirect engine for `/q/{shortcode}` tracking URLs
 - Added scan logging with hashed IP addresses, user agent, referrer, and scan time
 - Added scan counts, last scan, and recent scan history in admin
