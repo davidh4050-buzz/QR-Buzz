@@ -13,6 +13,7 @@ class AdminPage {
     }
 
     public function init(): void {
+        add_action('admin_init', [$this, 'handleRequest']);
         add_action('admin_menu', [$this, 'menu']);
         add_action('admin_enqueue_scripts', [$this, 'assets']);
     }
@@ -53,8 +54,6 @@ class AdminPage {
             wp_die(esc_html__('You do not have permission to access QR Buzz.', 'qr-buzz'));
         }
 
-        $this->handleRequest();
-
         $editing = $this->editingQrCode();
         $listTable = new QRCodeListTable($this->repository);
         $listTable->prepare_items();
@@ -74,7 +73,11 @@ class AdminPage {
         echo '</div>';
     }
 
-    private function handleRequest(): void {
+    public function handleRequest(): void {
+        if (!$this->isQrBuzzPage() || !current_user_can('manage_options')) {
+            return;
+        }
+
         $action = isset($_REQUEST['qrbuzz_action']) ? sanitize_key(wp_unslash($_REQUEST['qrbuzz_action'])) : '';
 
         if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -193,6 +196,10 @@ class AdminPage {
             echo '<p><a href="' . esc_url(admin_url('admin.php?page=qr-buzz')) . '">Cancel edit</a></p>';
         }
         echo '</form>';
+    }
+
+    private function isQrBuzzPage(): bool {
+        return isset($_REQUEST['page']) && sanitize_key(wp_unslash($_REQUEST['page'])) === 'qr-buzz';
     }
 
     private function formatDate(?string $date): string {
