@@ -1,0 +1,52 @@
+name: Build Release ZIP
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+
+      - name: Install production dependencies
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Prepare plugin directory
+        run: |
+          mkdir -p build/qr-buzz
+          rsync -av \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='build' \
+            --exclude='.gitignore' \
+            --exclude='composer.lock' \
+            ./ build/qr-buzz/
+
+      - name: Create ZIP
+        run: |
+          cd build
+          zip -r qr-buzz.zip qr-buzz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qr-buzz
+          path: build/qr-buzz.zip
+
+      - name: Attach ZIP to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/qr-buzz.zip
