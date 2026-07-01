@@ -1,23 +1,20 @@
 <?php
 namespace QRBuzz\Admin;
 
-use QRBuzz\Core\Requirements;
 use QRBuzz\Database\QRRepository;
 use QRBuzz\Models\QRCode;
-use QRBuzz\QR\QRGenerator;
 
 class AdminPage {
 
     private QRRepository $repository;
-    private QRGenerator $generator;
 
-    public function __construct(?QRRepository $repository = null, ?QRGenerator $generator = null) {
+    public function __construct(?QRRepository $repository = null) {
         $this->repository = $repository ?: new QRRepository();
-        $this->generator = $generator ?: new QRGenerator();
     }
 
     public function init(): void {
         add_action('admin_menu', [$this, 'menu']);
+        add_action('admin_enqueue_scripts', [$this, 'assets']);
     }
 
     public function menu(): void {
@@ -31,6 +28,26 @@ class AdminPage {
         );
     }
 
+    public function assets(string $hook): void {
+        if ($hook !== 'toplevel_page_qr-buzz') {
+            return;
+        }
+
+        wp_register_script('qrbuzz-admin', '', [], QR_BUZZ_VERSION, true);
+        wp_enqueue_script('qrbuzz-admin');
+        wp_add_inline_script(
+            'qrbuzz-admin',
+            "document.addEventListener('click',function(event){var button=event.target.closest('.qrbuzz-copy');if(!button){return;}navigator.clipboard.writeText(button.dataset.qrbuzzCopy).then(function(){button.textContent='Copied';setTimeout(function(){button.textContent='Copy tracking URL';},1600);});});"
+        );
+
+        wp_register_style('qrbuzz-admin', false, [], QR_BUZZ_VERSION);
+        wp_enqueue_style('qrbuzz-admin');
+        wp_add_inline_style(
+            'qrbuzz-admin',
+            '.qrbuzz-dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0 24px}.qrbuzz-card{background:#fff;border:1px solid #c3c4c7;padding:14px}.qrbuzz-card strong{display:block;font-size:22px;line-height:1.25}.qrbuzz-status{font-weight:600}.qrbuzz-status-active{color:#008a20}.qrbuzz-status-inactive{color:#8a2424}.qrbuzz-empty{background:#fff;border:1px solid #c3c4c7;padding:16px;margin:16px 0}.column-preview{width:92px}.column-scan_count,.column-created_at,.column-active{width:110px}'
+        );
+    }
+
     public function render(): void {
         if (!current_user_can('manage_options')) {
             wp_die(esc_html__('You do not have permission to access QR Buzz.', 'qr-buzz'));
@@ -39,17 +56,21 @@ class AdminPage {
         $this->handleRequest();
 
         $editing = $this->editingQrCode();
-        $qrCodes = $this->repository->allWithScanCounts();
-        $recentScans = $this->repository->recentScans();
-        $totalScans = array_sum(array_map(static fn(QRCode $qrCode): int => $qrCode->scanCount, $qrCodes));
+        $listTable = new QRCodeListTable($this->repository);
+        $listTable->prepare_items();
 
         echo '<div class="wrap">';
-        echo '<h1>QR Buzz</h1>';
+        echo '<h1 class="wp-heading-inline">QR Buzz</h1>';
         $this->notice();
-        echo '<p><strong>' . esc_html(count($qrCodes)) . '</strong> QR codes &nbsp; <strong>' . esc_html($totalScans) . '</strong> total scans</p>';
+        $this->renderDashboard();
         $this->renderForm($editing);
-        $this->renderTable($qrCodes);
-        $this->renderRecentScans($recentScans);
+        echo '<hr class="wp-header-end" />';
+        echo '<h2>QR Codes</h2>';
+        echo '<form method="get">';
+        echo '<input type="hidden" name="page" value="qr-buzz" />';
+        $listTable->search_box('Search QR codes', 'qrbuzz-search');
+        $listTable->display();
+        echo '</form>';
         echo '</div>';
     }
 
@@ -62,6 +83,10 @@ class AdminPage {
 
         if ($action === 'delete' && isset($_GET['qr_id'])) {
             $this->deleteQrCode((int) $_GET['qr_id']);
+        }
+
+        if (($action === 'activate' || $action === 'deactivate') && isset($_GET['qr_id'])) {
+            $this->toggleQrCode((int) $_GET['qr_id'], $action === 'activate');
         }
     }
 
@@ -92,6 +117,12 @@ class AdminPage {
         $this->redirectWithNotice('deleted');
     }
 
+    private function toggleQrCode(int $id, bool $active): void {
+        check_admin_referer('qrbuzz_toggle_qr_' . $id);
+        $this->repository->setActive($id, $active);
+        $this->redirectWithNotice($active ? 'activated' : 'deactivated');
+    }
+
     private function editingQrCode(): ?QRCode {
         if (!isset($_GET['qrbuzz_action'], $_GET['qr_id']) || $_GET['qrbuzz_action'] !== 'edit') {
             return null;
@@ -106,6 +137,8 @@ class AdminPage {
             'created' => ['success', 'QR code created.'],
             'updated' => ['success', 'QR code updated.'],
             'deleted' => ['success', 'QR code deleted.'],
+            'activated' => ['success', 'QR code activated.'],
+            'deactivated' => ['success', 'QR code deactivated.'],
             'invalid' => ['error', 'Please enter a name and a valid destination URL.'],
         ];
 
@@ -115,6 +148,28 @@ class AdminPage {
 
         [$type, $message] = $messages[$notice];
         echo '<div class="notice notice-' . esc_attr($type) . ' is-dismissible"><p>' . esc_html($message) . '</p></div>';
+    }
+
+    private function renderDashboard(): void {
+        $summary = $this->repository->dashboardSummary();
+        $mostScanned = $summary['most_scanned'];
+
+        echo '<div class="qrbuzz-dashboard">';
+        echo '<div class="qrbuzz-card"><span>Total QR Codes</span><strong>' . esc_html((string) $summary['total_qr_codes']) . '</strong></div>';
+        echo '<div class="qrbuzz-card"><span>Total Scans</span><strong>' . esc_html((string) $summary['total_scans']) . '</strong></div>';
+        echo '<div class="qrbuzz-card"><span>Most Scanned</span><strong>' . esc_html($mostScanned && $mostScanned->scanCount > 0 ? $mostScanned->name : '-') . '</strong></div>';
+        echo '<div class="qrbuzz-card"><span>Latest Scan</span><strong>' . esc_html($this->formatDate($summary['latest_scan'])) . '</strong></div>';
+        echo '</div>';
+
+        if (!$summary['recent_qr_codes']) {
+            echo '<div class="qrbuzz-empty"><strong>No QR codes yet.</strong><p>Create a QR code below to start tracking scans.</p></div>';
+            return;
+        }
+
+        echo '<p><strong>Recently created:</strong> ';
+        $recent = array_map(static fn(QRCode $qrCode): string => esc_html($qrCode->name), $summary['recent_qr_codes']);
+        echo implode(', ', $recent);
+        echo '</p>';
     }
 
     private function renderForm(?QRCode $editing): void {
@@ -130,85 +185,14 @@ class AdminPage {
         echo '<input type="hidden" name="qr_id" value="' . esc_attr($isEditing ? $editing->id : 0) . '" />';
         echo '<table class="form-table" role="presentation"><tbody>';
         echo '<tr><th scope="row"><label for="qrbuzz-name">Name</label></th><td><input id="qrbuzz-name" class="regular-text" name="name" value="' . esc_attr($name) . '" required /></td></tr>';
-        echo '<tr><th scope="row"><label for="qrbuzz-destination">Destination URL</label></th><td><input id="qrbuzz-destination" class="regular-text" type="url" name="destination_url" value="' . esc_attr($destinationUrl) . '" required /></td></tr>';
-        echo '<tr><th scope="row">Active</th><td><label><input type="checkbox" name="active" value="1" ' . checked($active, true, false) . ' /> Enable redirects and scan tracking</label></td></tr>';
+        echo '<tr><th scope="row"><label for="qrbuzz-destination">Destination URL</label></th><td><input id="qrbuzz-destination" class="regular-text" type="url" name="destination_url" value="' . esc_attr($destinationUrl) . '" required /><p class="description">Editing this URL will not change the tracking URL or shortcode.</p></td></tr>';
+        echo '<tr><th scope="row">Status</th><td><label><input type="checkbox" name="active" value="1" ' . checked($active, true, false) . ' /> Active</label></td></tr>';
         echo '</tbody></table>';
         submit_button($isEditing ? 'Update QR Code' : 'Create QR Code');
         if ($isEditing) {
             echo '<p><a href="' . esc_url(admin_url('admin.php?page=qr-buzz')) . '">Cancel edit</a></p>';
         }
         echo '</form>';
-    }
-
-    /**
-     * @param QRCode[] $qrCodes
-     */
-    private function renderTable(array $qrCodes): void {
-        echo '<h2>QR Codes</h2>';
-        echo '<table class="widefat striped"><thead><tr>';
-        echo '<th>Name</th><th>Tracking URL</th><th>QR</th><th>Scans</th><th>Last Scan</th><th>Status</th><th>Actions</th>';
-        echo '</tr></thead><tbody>';
-
-        if (!$qrCodes) {
-            echo '<tr><td colspan="7">No QR codes yet.</td></tr>';
-        }
-
-        foreach ($qrCodes as $qrCode) {
-            $trackingUrl = $this->generator->trackingUrl($qrCode->shortcode);
-            $editUrl = admin_url('admin.php?page=qr-buzz&qrbuzz_action=edit&qr_id=' . $qrCode->id);
-            $deleteUrl = wp_nonce_url(
-                admin_url('admin.php?page=qr-buzz&qrbuzz_action=delete&qr_id=' . $qrCode->id),
-                'qrbuzz_delete_qr_' . $qrCode->id
-            );
-
-            echo '<tr>';
-            echo '<td><strong>' . esc_html($qrCode->name) . '</strong><br><a href="' . esc_url($qrCode->destinationUrl) . '" target="_blank" rel="noopener noreferrer">' . esc_html($qrCode->destinationUrl) . '</a></td>';
-            echo '<td><input class="regular-text" readonly value="' . esc_attr($trackingUrl) . '" /></td>';
-            echo '<td>' . $this->qrImage($trackingUrl, $qrCode->name) . '</td>';
-            echo '<td>' . esc_html($qrCode->scanCount) . '</td>';
-            echo '<td>' . esc_html($this->formatDate($qrCode->lastScan)) . '</td>';
-            echo '<td>' . esc_html($qrCode->active ? 'Active' : 'Paused') . '</td>';
-            echo '<td><a href="' . esc_url($editUrl) . '">Edit</a> | <a href="' . esc_url($deleteUrl) . '" onclick="return confirm(&quot;Delete this QR code and its scan history?&quot;);">Delete</a></td>';
-            echo '</tr>';
-        }
-
-        echo '</tbody></table>';
-    }
-
-    /**
-     * @param object[] $recentScans
-     */
-    private function renderRecentScans(array $recentScans): void {
-        echo '<h2>Recent Scans</h2>';
-        echo '<table class="widefat striped"><thead><tr><th>QR Code</th><th>Scanned At</th><th>Referrer</th><th>User Agent</th></tr></thead><tbody>';
-
-        if (!$recentScans) {
-            echo '<tr><td colspan="4">No scans recorded yet.</td></tr>';
-        }
-
-        foreach ($recentScans as $scan) {
-            echo '<tr>';
-            echo '<td>' . esc_html($scan->qr_name) . ' <code>' . esc_html($scan->shortcode) . '</code></td>';
-            echo '<td>' . esc_html($this->formatDate((string) $scan->scanned_at)) . '</td>';
-            echo '<td>' . esc_html($scan->referrer ?: '-') . '</td>';
-            echo '<td>' . esc_html(wp_trim_words((string) $scan->user_agent, 12, '...')) . '</td>';
-            echo '</tr>';
-        }
-
-        echo '</tbody></table>';
-    }
-
-    private function qrImage(string $trackingUrl, string $name): string {
-        if (!Requirements::dependenciesLoaded()) {
-            return '<span class="description">' . esc_html(Requirements::missingDependenciesMessage()) . '</span>';
-        }
-
-        try {
-            $src = $this->generator->generate($trackingUrl, 140);
-            return '<img src="' . esc_attr($src) . '" width="140" height="140" alt="QR code for ' . esc_attr($name) . '" />';
-        } catch (\Throwable $exception) {
-            return '<span class="description">QR image unavailable: ' . esc_html($exception->getMessage()) . '</span>';
-        }
     }
 
     private function formatDate(?string $date): string {
