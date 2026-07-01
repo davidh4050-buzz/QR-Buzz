@@ -15,11 +15,6 @@ class QRCodeListTable extends \WP_List_Table {
     private QRRepository $repository;
     private QRGenerator $generator;
 
-    /**
-     * @var QRCode[]
-     */
-    public array $items = [];
-
     public function __construct(QRRepository $repository, ?QRGenerator $generator = null) {
         parent::__construct([
             'singular' => 'qr_code',
