@@ -21,10 +21,13 @@ class QRRepository {
         $qrcodesTable = Schema::qrcodesTable();
         $scansTable = Schema::scansTable();
         $rows = $wpdb->get_results(
-            "SELECT q.*, COUNT(s.id) AS scan_count, MAX(s.scanned_at) AS last_scan
+            "SELECT q.*, COALESCE(stats.scan_count, 0) AS scan_count, stats.last_scan
              FROM {$qrcodesTable} q
-             LEFT JOIN {$scansTable} s ON s.qr_id = q.id
-             GROUP BY q.id
+             LEFT JOIN (
+                SELECT qr_id, COUNT(id) AS scan_count, MAX(scanned_at) AS last_scan
+                FROM {$scansTable}
+                GROUP BY qr_id
+             ) stats ON stats.qr_id = q.id
              ORDER BY q.created_at DESC"
         );
 
@@ -38,11 +41,15 @@ class QRRepository {
         $scansTable = Schema::scansTable();
         $row = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT q.*, COUNT(s.id) AS scan_count, MAX(s.scanned_at) AS last_scan
+                "SELECT q.*, COALESCE(stats.scan_count, 0) AS scan_count, stats.last_scan
                  FROM {$qrcodesTable} q
-                 LEFT JOIN {$scansTable} s ON s.qr_id = q.id
+                 LEFT JOIN (
+                    SELECT qr_id, COUNT(id) AS scan_count, MAX(scanned_at) AS last_scan
+                    FROM {$scansTable}
+                    GROUP BY qr_id
+                 ) stats ON stats.qr_id = q.id
                  WHERE q.id = %d
-                 GROUP BY q.id",
+                 LIMIT 1",
                 $id
             )
         );
