@@ -13,6 +13,12 @@ v0.2.0 establishes the core platform: custom database tables, dynamic tracking U
 
 Release ZIPs include bundled production dependencies, so Composer is not required on the target WordPress site.
 
+## Installing on WordPress
+
+Install the `qr-buzz.zip` file produced by the GitHub Actions release workflow or attached to a GitHub release.
+
+Do not install GitHub's automatic source-code ZIP from the green Code button. That ZIP does not include Composer dependencies, so QR image generation will not be available.
+
 ## Features in v0.2.0
 
 - Create, edit, pause, and delete QR codes in WordPress admin
