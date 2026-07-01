@@ -1,7 +1,3 @@
 <?php
-
-if (!defined('WP_UNINSTALL_PLUGIN')) {
-    exit;
-}
-
-// v0.1.0: nothing to clean yet
+if (!defined('WP_UNINSTALL_PLUGIN')) exit;
+// Nothing to clean in v0.1.0
