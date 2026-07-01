@@ -1,6 +1,7 @@
 <?php
 namespace QRBuzz\Admin;
 
+use QRBuzz\Core\Requirements;
 use QRBuzz\Database\QRRepository;
 use QRBuzz\Models\QRCode;
 use QRBuzz\QR\QRGenerator;
@@ -198,11 +199,15 @@ class AdminPage {
     }
 
     private function qrImage(string $trackingUrl, string $name): string {
+        if (!Requirements::dependenciesLoaded()) {
+            return '<span class="description">' . esc_html(Requirements::missingDependenciesMessage()) . '</span>';
+        }
+
         try {
             $src = $this->generator->generate($trackingUrl, 140);
             return '<img src="' . esc_attr($src) . '" width="140" height="140" alt="QR code for ' . esc_attr($name) . '" />';
         } catch (\Throwable $exception) {
-            return '<span class="description">QR image unavailable.</span>';
+            return '<span class="description">QR image unavailable: ' . esc_html($exception->getMessage()) . '</span>';
         }
     }
 
