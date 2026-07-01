@@ -14,11 +14,15 @@ class QRGenerator {
     }
 
     public function generatePngDataUri(string $data, int $size = 300): string {
-        return (new PngWriter())->write($this->qrCode($data, $size))->getDataUri();
+        $qrCode = $this->qrCode($data, $size);
+
+        return (new PngWriter())->write($qrCode)->getDataUri();
     }
 
     public function generatePng(string $data, int $size = 600): string {
-        return (new PngWriter())->write($this->qrCode($data, $size))->getString();
+        $qrCode = $this->qrCode($data, $size);
+
+        return (new PngWriter())->write($qrCode)->getString();
     }
 
     public function generateSvg(string $data, int $size = 600): string {
@@ -26,7 +30,9 @@ class QRGenerator {
             throw new \RuntimeException('SVG QR downloads are not available with the bundled QR library.');
         }
 
-        return (new SvgWriter())->write($this->qrCode($data, $size))->getString();
+        $qrCode = $this->qrCode($data, $size);
+
+        return (new SvgWriter())->write($qrCode)->getString();
     }
 
     public function supportsSvg(): bool {
@@ -44,7 +50,7 @@ class QRGenerator {
             throw new \InvalidArgumentException('Please enter a URL to generate a QR code.');
         }
 
-        if (!class_exists(QrCode::class)) {
+        if (!class_exists(QrCode::class) || !class_exists(PngWriter::class)) {
             throw new \RuntimeException('QR Buzz dependencies are missing. Run composer install before using the development copy.');
         }
 
