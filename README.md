@@ -2,7 +2,7 @@
 
 QR Buzz is an open-core WordPress plugin for QR code management and scan analytics.
 
-v0.2.0 establishes the core platform: custom database tables, dynamic tracking URLs, local QR generation, redirect-based scan logging, and a release build workflow.
+v0.3.0 focuses on day-to-day QR management polish: a WordPress-native admin list, search, pagination, dashboard summary cards, QR status actions, and PNG/SVG downloads.
 
 ## Requirements
 
@@ -23,15 +23,28 @@ If you download a GitHub Actions artifact, unzip that download first. The artifa
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
 
-## Features in v0.2.0
+## Features in v0.3.0
+
+- WordPress-native QR code list table
+- Search QR codes by name
+- Paginated QR management
+- Sortable name, scan count, created date, and status columns
+- QR preview thumbnails
+- Destination URL and tracking URL columns
+- Row actions for edit, delete, activate/deactivate, copy tracking URL, download PNG, and download SVG
+- Secure PNG and SVG download endpoints
+- Dashboard summary cards for total QR codes, total scans, most scanned QR code, latest scan, and recently created QR codes
+- Clearer success and error notices
+- Better empty states and destructive-action confirmations
+
+## Core Platform Features
 
 - Create, edit, pause, and delete QR codes in WordPress admin
-- Generate local PNG QR codes with `endroid/qr-code`
+- Generate local QR codes with `endroid/qr-code`
 - Encode dynamic tracking URLs such as `/q/ABC123`
 - 302 redirect scans to the destination URL
 - Log scans to custom database tables
 - Hash visitor IP addresses instead of storing raw IPs
-- Show scan counts, last scan, and recent scan history
 - Composer-based development setup
 - GitHub Actions release ZIP generation
 
@@ -67,7 +80,7 @@ composer fix
 ## Release Process
 
 1. Merge the release branch into `main`.
-2. Tag the release, for example `v0.2.0`.
+2. Tag the release, for example `v0.3.0`.
 3. Push the tag to GitHub.
 4. The release workflow installs production dependencies and uploads `qr-buzz.zip` as a build artifact.
 
@@ -75,4 +88,4 @@ The workflow can also be run manually from the GitHub Actions tab.
 
 ## Roadmap
 
-Future releases will build on the v0.2.0 foundation with deeper analytics, device/browser reporting, CSV export, REST API endpoints, WooCommerce integration, live scan notifications, and optional Pro features.
+Future releases will build on this foundation with deeper analytics, device/browser reporting, CSV export, REST API endpoints, WooCommerce integration, live scan notifications, and optional Pro features.
