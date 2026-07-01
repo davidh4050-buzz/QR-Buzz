@@ -19,6 +19,10 @@ Install the `qr-buzz.zip` file produced by the GitHub Actions release workflow o
 
 Do not install GitHub's automatic source-code ZIP from the green Code button. That ZIP does not include Composer dependencies, so QR image generation will not be available.
 
+If you download a GitHub Actions artifact, unzip that download first. The artifact contains the actual WordPress plugin file named `qr-buzz.zip`; upload that inner ZIP to WordPress.
+
+If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
+
 ## Features in v0.2.0
 
 - Create, edit, pause, and delete QR codes in WordPress admin
