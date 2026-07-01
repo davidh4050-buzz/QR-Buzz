@@ -37,7 +37,7 @@ class AdminPage {
         wp_enqueue_script('qrbuzz-admin');
         wp_add_inline_script(
             'qrbuzz-admin',
-            "document.addEventListener('click',function(event){var button=event.target.closest('.qrbuzz-copy');if(!button){return;}navigator.clipboard.writeText(button.dataset.qrbuzzCopy).then(function(){button.textContent='Copied';setTimeout(function(){button.textContent='Copy tracking URL';},1600);});});"
+            "document.addEventListener('click',function(event){var button=event.target.closest('.qrbuzz-copy');if(!button){return;}var value=button.dataset.qrbuzzCopy;if(!navigator.clipboard){window.prompt('Copy tracking URL',value);return;}navigator.clipboard.writeText(value).then(function(){button.textContent='Copied';setTimeout(function(){button.textContent='Copy tracking URL';},1600);}).catch(function(){window.prompt('Copy tracking URL',value);});});"
         );
 
         wp_register_style('qrbuzz-admin', false, [], QR_BUZZ_VERSION);
