@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - v0.2.0-local-qr
+      - v0.3.0-admin-ux-downloads
     tags:
       - 'v*'
 

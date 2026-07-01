@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0
+- Added WordPress-native QR code list table
+- Added QR code search, pagination, and sortable columns
+- Added QR preview thumbnails to the admin list
+- Added row actions for edit, delete, activate/deactivate, copy tracking URL, download PNG, and download SVG
+- Added secure admin download endpoints for PNG and SVG QR files
+- Added dashboard summary cards for QR totals, scan totals, most scanned QR code, latest scan, and recently created QR codes
+- Added repository methods for paginated management queries and dashboard statistics
+- Improved create/edit form copy, notices, empty states, and destructive-action confirmations
+- Updated plugin metadata for v0.3.0
+
 ## 0.2.0
 - Added Composer development setup with `endroid/qr-code`
 - Added release ZIP generation through GitHub Actions
