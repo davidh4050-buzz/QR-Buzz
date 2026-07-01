@@ -44,7 +44,7 @@ class RedirectHandler {
         }
 
         $this->repository->logScan($qrCode, $_SERVER);
-        wp_safe_redirect($qrCode->destinationUrl, 302);
+        wp_redirect(esc_url_raw($qrCode->destinationUrl), 302);
         exit;
     }
 }
