@@ -2,6 +2,7 @@
 namespace QRBuzz;
 
 use QRBuzz\Admin\AdminPage;
+use QRBuzz\Core\Requirements;
 use QRBuzz\Database\Installer;
 use QRBuzz\Database\QRRepository;
 use QRBuzz\Redirect\RedirectHandler;
@@ -16,6 +17,7 @@ class Plugin {
 
     public function init(): void {
         $this->maybeUpgradeDatabase();
+        (new Requirements())->init();
         (new RedirectHandler($this->repository))->init();
 
         if (is_admin()) {
