@@ -167,7 +167,7 @@ class AdminPage {
             echo '<td>' . esc_html($qrCode->scanCount) . '</td>';
             echo '<td>' . esc_html($this->formatDate($qrCode->lastScan)) . '</td>';
             echo '<td>' . esc_html($qrCode->active ? 'Active' : 'Paused') . '</td>';
-            echo '<td><a href="' . esc_url($editUrl) . '">Edit</a> | <a href="' . esc_url($deleteUrl) . '" onclick="return confirm(\'Delete this QR code and its scan history?\');">Delete</a></td>';
+            echo '<td><a href="' . esc_url($editUrl) . '">Edit</a> | <a href="' . esc_url($deleteUrl) . '" onclick="return confirm(&quot;Delete this QR code and its scan history?&quot;);">Delete</a></td>';
             echo '</tr>';
         }
 
