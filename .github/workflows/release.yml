@@ -26,6 +26,11 @@ jobs:
       - name: Install production dependencies
         run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 
+      - name: Prune development files from vendor packages
+        run: |
+          find vendor -type d \( -iname test -o -iname tests -o -iname docs -o -iname doc -o -iname examples -o -iname example \) -prune -exec rm -rf {} +
+          find vendor -type f \( -iname '*.md' -o -iname '*.dist' -o -iname 'phpunit.xml*' -o -iname '.php_cs*' -o -iname '.php-cs-fixer*' \) -delete
+
       - name: Prepare plugin directory
         run: |
           mkdir -p build/qr-buzz
@@ -40,12 +45,12 @@ jobs:
       - name: Create ZIP
         run: |
           cd build
-          zip -r qr-buzz.zip qr-buzz
+          zip -9 -r qr-buzz.zip qr-buzz
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: qr-buzz
+          name: qr-buzz-wordpress-plugin
           path: build/qr-buzz.zip
 
       - name: Attach ZIP to GitHub release
