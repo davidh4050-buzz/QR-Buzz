@@ -1,6 +1,8 @@
 <?php
 namespace QRBuzz\Models;
 
+use QRBuzz\Utils\DateTimeHelper;
+
 class QRCode {
 
     public int $id;
@@ -10,6 +12,12 @@ class QRCode {
     public string $createdAt;
     public string $updatedAt;
     public bool $active;
+    public string $status;
+    public ?string $fallbackUrl;
+    public ?string $expiresAt;
+    public ?string $scheduledUrl;
+    public ?string $scheduledStartAt;
+    public ?string $scheduledEndAt;
     public int $scanCount;
     public ?string $lastScan;
 
@@ -22,9 +30,38 @@ class QRCode {
         $qrCode->createdAt = (string) $row->created_at;
         $qrCode->updatedAt = (string) $row->updated_at;
         $qrCode->active = (bool) $row->active;
+        $qrCode->status = isset($row->status) && (string) $row->status !== '' ? (string) $row->status : ($qrCode->active ? 'active' : 'paused');
+        $qrCode->fallbackUrl = self::nullableString($row->fallback_url ?? null);
+        $qrCode->expiresAt = self::nullableString($row->expires_at ?? null);
+        $qrCode->scheduledUrl = self::nullableString($row->scheduled_url ?? null);
+        $qrCode->scheduledStartAt = self::nullableString($row->scheduled_start_at ?? null);
+        $qrCode->scheduledEndAt = self::nullableString($row->scheduled_end_at ?? null);
         $qrCode->scanCount = isset($row->scan_count) ? (int) $row->scan_count : 0;
         $qrCode->lastScan = isset($row->last_scan) && $row->last_scan !== null ? (string) $row->last_scan : null;
 
         return $qrCode;
+    }
+
+    public function effectiveStatus(?int $timestamp = null): string {
+        return $this->isExpired($timestamp) ? 'expired' : $this->status;
+    }
+
+    public function isExpired(?int $timestamp = null): bool {
+        $expiresTimestamp = DateTimeHelper::utcTimestamp($this->expiresAt);
+
+        if (!$expiresTimestamp) {
+            return false;
+        }
+
+        return $expiresTimestamp <= ($timestamp ?: current_time('timestamp', true));
+    }
+
+    private static function nullableString($value): ?string {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+        return $value === '' ? null : $value;
     }
 }
