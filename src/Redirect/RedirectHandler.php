@@ -49,11 +49,27 @@ class RedirectHandler {
         $this->repository->logScan($qrCode, $_SERVER, $resolution);
 
         if ($resolution->shouldRedirect && $resolution->destinationUrl) {
-            wp_safe_redirect(esc_url_raw($resolution->destinationUrl), 302);
-            exit;
+            $this->safeRedirect($resolution->destinationUrl);
         }
 
         $this->renderMessage($resolution);
+    }
+
+    private function safeRedirect(string $destinationUrl): void {
+        $host = wp_parse_url($destinationUrl, PHP_URL_HOST);
+
+        if ($host) {
+            add_filter(
+                'allowed_redirect_hosts',
+                static function(array $hosts) use ($host): array {
+                    $hosts[] = $host;
+                    return array_unique($hosts);
+                }
+            );
+        }
+
+        wp_safe_redirect(esc_url_raw($destinationUrl), 302);
+        exit;
     }
 
     private function renderMessage(Resolution $resolution): void {
