@@ -8,7 +8,7 @@ class DateTimeHelper {
     }
 
     public static function nowLocalDisplay(): string {
-        return wp_date(get_option('date_format') . ' ' . get_option('time_format'), current_time('timestamp'));
+        return wp_date(get_option('date_format') . ' ' . get_option('time_format'), current_time('timestamp', true));
     }
 
     public static function localInputToUtc(?string $value): ?string {
