@@ -2,7 +2,7 @@
 
 QR Buzz is an open-core WordPress plugin for QR code management and scan analytics.
 
-v0.3.0 focuses on day-to-day QR management polish: a WordPress-native admin list, search, pagination, dashboard summary cards, QR status actions, and PNG/SVG downloads.
+v0.4.0 is the first proper analytics release. It adds a dedicated analytics dashboard with scan totals, date range filters, scan trends, top QR codes, recent activity, and lightweight device/browser breakdowns.
 
 ## Requirements
 
@@ -23,23 +23,23 @@ If you download a GitHub Actions artifact, unzip that download first. The artifa
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
 
-## Features in v0.3.0
+## Features in v0.4.0
 
-- WordPress-native QR code list table
-- Search QR codes by name
-- Paginated QR management
-- Sortable name, scan count, created date, and status columns
-- QR preview thumbnails
-- Destination URL and tracking URL columns
-- Row actions for edit, delete, activate/deactivate, copy tracking URL, download PNG, and download SVG
-- Secure PNG and SVG download endpoints
-- Dashboard summary cards for total QR codes, total scans, most scanned QR code, latest scan, and recently created QR codes
-- Clearer success and error notices
-- Better empty states and destructive-action confirmations
+- Dedicated QR Buzz Analytics admin page
+- Date range filters for today, last 7 days, last 30 days, and all time
+- Summary cards for total QR codes, total scans, scans today, scans in the last 7 days, most scanned QR code, and latest scan
+- Lightweight scan trend chart without a heavy charting dependency
+- Top QR codes table sorted by total scans
+- Recent scan activity feed with referrer, user-agent summary, and country placeholder
+- Basic mobile/desktop/tablet breakdown
+- Basic browser-family breakdown
+- Privacy-conscious analytics using existing hashed IP, user agent, referrer, and country fields
 
 ## Core Platform Features
 
 - Create, edit, pause, and delete QR codes in WordPress admin
+- WordPress-native QR code list table with search, pagination, sorting, thumbnails, and row actions
+- Download PNG and SVG QR files
 - Generate local QR codes with `endroid/qr-code`
 - Encode dynamic tracking URLs such as `/q/ABC123`
 - 302 redirect scans to the destination URL
@@ -80,7 +80,7 @@ composer fix
 ## Release Process
 
 1. Merge the release branch into `main`.
-2. Tag the release, for example `v0.3.0`.
+2. Tag the release, for example `v0.4.0`.
 3. Push the tag to GitHub.
 4. The release workflow installs production dependencies and uploads `qr-buzz.zip` as a build artifact.
 
@@ -88,4 +88,4 @@ The workflow can also be run manually from the GitHub Actions tab.
 
 ## Roadmap
 
-Future releases will build on this foundation with deeper analytics, device/browser reporting, CSV export, REST API endpoints, WooCommerce integration, live scan notifications, and optional Pro features.
+Future releases will build on this foundation with CSV export, retention controls, deeper device/browser reporting, REST API endpoints, WooCommerce integration, live scan notifications, and optional Pro features.
