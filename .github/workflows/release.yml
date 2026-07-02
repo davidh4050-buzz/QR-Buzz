@@ -8,6 +8,7 @@ on:
       - v0.2.0-local-qr
       - v0.3.0-admin-ux-downloads
       - v0.4.0-analytics-dashboard
+      - v0.5.0-dynamic-destinations
     tags:
       - 'v*'
 

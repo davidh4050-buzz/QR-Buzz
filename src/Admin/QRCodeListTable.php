@@ -89,8 +89,9 @@ class QRCodeListTable extends \WP_List_Table {
             admin_url('admin.php?page=qr-buzz&qrbuzz_action=delete&qr_id=' . $item->id),
             'qrbuzz_delete_qr_' . $item->id
         );
+        $isPaused = $item->effectiveStatus() === 'paused';
         $toggleUrl = wp_nonce_url(
-            admin_url('admin.php?page=qr-buzz&qrbuzz_action=' . ($item->active ? 'deactivate' : 'activate') . '&qr_id=' . $item->id),
+            admin_url('admin.php?page=qr-buzz&qrbuzz_action=' . ($isPaused ? 'activate' : 'deactivate') . '&qr_id=' . $item->id),
             'qrbuzz_toggle_qr_' . $item->id
         );
         $pngUrl = $this->downloadUrl($item, 'png');
@@ -98,7 +99,7 @@ class QRCodeListTable extends \WP_List_Table {
 
         $actions = [
             'edit' => '<a href="' . esc_url($editUrl) . '">Edit</a>',
-            'toggle' => '<a href="' . esc_url($toggleUrl) . '">' . esc_html($item->active ? 'Deactivate' : 'Activate') . '</a>',
+            'toggle' => '<a href="' . esc_url($toggleUrl) . '">' . esc_html($isPaused ? 'Activate' : 'Pause') . '</a>',
             'copy' => '<button type="button" class="button-link qrbuzz-copy" data-qrbuzz-copy="' . esc_attr($this->trackingUrl($item)) . '">Copy tracking URL</button>',
             'download_png' => '<a href="' . esc_url($pngUrl) . '">Download PNG</a>',
         ];
@@ -130,7 +131,14 @@ class QRCodeListTable extends \WP_List_Table {
     }
 
     public function column_active(QRCode $item): string {
-        return $item->active ? '<span class="qrbuzz-status qrbuzz-status-active">Active</span>' : '<span class="qrbuzz-status qrbuzz-status-inactive">Inactive</span>';
+        $status = $item->effectiveStatus();
+        $labels = [
+            'active' => 'Active',
+            'paused' => 'Paused',
+            'expired' => 'Expired',
+        ];
+
+        return '<span class="qrbuzz-status qrbuzz-status-' . esc_attr($status) . '">' . esc_html($labels[$status] ?? 'Active') . '</span>';
     }
 
     public function column_default($item, $columnName): string {

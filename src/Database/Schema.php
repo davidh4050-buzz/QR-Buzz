@@ -12,4 +12,9 @@ class Schema {
         global $wpdb;
         return $wpdb->prefix . 'qrbuzz_scans';
     }
+
+    public static function destinationHistoryTable(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'qrbuzz_destination_history';
+    }
 }
