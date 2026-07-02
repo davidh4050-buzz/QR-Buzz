@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0
+- Added Dynamic Destinations so QR codes can change destination without changing shortcode, tracking URL, or printed QR image
+- Added active and paused status handling with computed expired state
+- Added optional fallback URL for paused, expired, or unavailable scheduled destinations
+- Added optional expiry date/time per QR code
+- Added one scheduled destination window per QR code
+- Added central destination resolver for primary, scheduled, fallback, paused, and expired outcomes
+- Added redirect preview simulator on the QR edit screen
+- Added destination history table and recent history display on the edit screen
+- Added scan outcome fields for resolved destination, resolution reason, and scan status
+- Added database upgrade support from v0.4.0 custom tables
+- Updated plugin metadata for v0.5.0
+
 ## 0.4.0
 - Added dedicated QR Buzz Analytics admin page
 - Added analytics date range filters for today, last 7 days, last 30 days, and all time
