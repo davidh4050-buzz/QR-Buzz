@@ -2,6 +2,7 @@
 namespace QRBuzz\Database;
 
 use QRBuzz\Models\QRCode;
+use QRBuzz\Redirect\Resolution;
 use QRBuzz\Utils\ShortcodeGenerator;
 
 class QRRepository {
@@ -110,10 +111,11 @@ class QRRepository {
         return $row ? QRCode::fromRow($row) : null;
     }
 
-    public function create(string $name, string $destinationUrl): int {
+    public function create(string $name, string $destinationUrl, array $settings = []): int {
         global $wpdb;
 
         $now = current_time('mysql');
+        $status = $this->normalizeStatus($settings['status'] ?? 'active');
         $wpdb->insert(
             Schema::qrcodesTable(),
             [
@@ -122,60 +124,95 @@ class QRRepository {
                 'shortcode' => $this->uniqueShortcode(),
                 'created_at' => $now,
                 'updated_at' => $now,
-                'active' => 1,
+                'active' => $status === 'active' ? 1 : 0,
+                'status' => $status,
+                'fallback_url' => $this->nullableUrl($settings['fallback_url'] ?? null),
+                'expires_at' => $this->nullableString($settings['expires_at'] ?? null),
+                'scheduled_url' => $this->nullableUrl($settings['scheduled_url'] ?? null),
+                'scheduled_start_at' => $this->nullableString($settings['scheduled_start_at'] ?? null),
+                'scheduled_end_at' => $this->nullableString($settings['scheduled_end_at'] ?? null),
             ],
-            ['%s', '%s', '%s', '%s', '%s', '%d']
+            ['%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s']
         );
 
         return (int) $wpdb->insert_id;
     }
 
-    public function update(int $id, string $name, string $destinationUrl, bool $active): bool {
+    public function update(int $id, string $name, string $destinationUrl, string $status, array $settings = [], int $userId = 0): bool {
         global $wpdb;
 
+        $before = $this->find($id);
+        $status = $this->normalizeStatus($status);
+        $data = [
+            'name' => $name,
+            'destination_url' => $destinationUrl,
+            'updated_at' => current_time('mysql'),
+            'active' => $status === 'active' ? 1 : 0,
+            'status' => $status,
+            'fallback_url' => $this->nullableUrl($settings['fallback_url'] ?? null),
+            'expires_at' => $this->nullableString($settings['expires_at'] ?? null),
+            'scheduled_url' => $this->nullableUrl($settings['scheduled_url'] ?? null),
+            'scheduled_start_at' => $this->nullableString($settings['scheduled_start_at'] ?? null),
+            'scheduled_end_at' => $this->nullableString($settings['scheduled_end_at'] ?? null),
+        ];
         $result = $wpdb->update(
             Schema::qrcodesTable(),
-            [
-                'name' => $name,
-                'destination_url' => $destinationUrl,
-                'updated_at' => current_time('mysql'),
-                'active' => $active ? 1 : 0,
-            ],
+            $data,
             ['id' => $id],
-            ['%s', '%s', '%s', '%d'],
+            ['%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s'],
             ['%d']
         );
 
-        return $result !== false;
+        if ($result === false) {
+            return false;
+        }
+
+        if ($before) {
+            $this->recordDestinationChanges($before, $data, $userId);
+        }
+
+        return true;
     }
 
     public function setActive(int $id, bool $active): bool {
         global $wpdb;
 
+        $before = $this->find($id);
+        $status = $active ? 'active' : 'paused';
         $result = $wpdb->update(
             Schema::qrcodesTable(),
             [
                 'active' => $active ? 1 : 0,
+                'status' => $status,
                 'updated_at' => current_time('mysql'),
             ],
             ['id' => $id],
-            ['%d', '%s'],
+            ['%d', '%s', '%s'],
             ['%d']
         );
 
-        return $result !== false;
+        if ($result === false) {
+            return false;
+        }
+
+        if ($before && $before->status !== $status) {
+            $this->recordHistory($id, 'status_changed', $before->status, $status, get_current_user_id());
+        }
+
+        return true;
     }
 
     public function delete(int $id): bool {
         global $wpdb;
 
         $wpdb->delete(Schema::scansTable(), ['qr_id' => $id], ['%d']);
+        $wpdb->delete(Schema::destinationHistoryTable(), ['qr_id' => $id], ['%d']);
         $result = $wpdb->delete(Schema::qrcodesTable(), ['id' => $id], ['%d']);
 
         return $result !== false;
     }
 
-    public function logScan(QRCode $qrCode, array $server): void {
+    public function logScan(QRCode $qrCode, array $server, ?Resolution $resolution = null): void {
         global $wpdb;
 
         $ip = $server['REMOTE_ADDR'] ?? '';
@@ -191,8 +228,11 @@ class QRRepository {
                 'user_agent' => sanitize_textarea_field((string) $userAgent),
                 'referrer' => esc_url_raw((string) $referrer),
                 'country' => null,
+                'destination_resolved' => $resolution ? $resolution->destinationUrl : null,
+                'resolution_reason' => $resolution ? $resolution->reason : null,
+                'scan_status' => $resolution ? $resolution->scanStatus : null,
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%s']
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
     }
 
@@ -242,6 +282,21 @@ class QRRepository {
     }
 
     /**
+     * @return object[]
+     */
+    public function destinationHistory(int $qrId, int $limit = 10): array {
+        global $wpdb;
+
+        return $wpdb->get_results(
+            $wpdb->prepare(
+                'SELECT h.*, u.display_name AS user_name FROM ' . Schema::destinationHistoryTable() . ' h LEFT JOIN ' . $wpdb->users . ' u ON u.ID = h.changed_by WHERE h.qr_id = %d ORDER BY h.changed_at DESC LIMIT %d',
+                $qrId,
+                $limit
+            )
+        ) ?: [];
+    }
+
+    /**
      * @return QRCode[]
      */
     public function recentQrCodes(int $limit = 5): array {
@@ -281,6 +336,44 @@ class QRRepository {
         ];
     }
 
+    private function recordDestinationChanges(QRCode $before, array $after, int $userId): void {
+        $changes = [
+            'destination_url' => ['primary_destination_updated', $before->destinationUrl],
+            'scheduled_url' => ['scheduled_destination_updated', $before->scheduledUrl],
+            'scheduled_start_at' => ['scheduled_destination_updated', $before->scheduledStartAt],
+            'scheduled_end_at' => ['scheduled_destination_updated', $before->scheduledEndAt],
+            'fallback_url' => ['fallback_updated', $before->fallbackUrl],
+            'status' => ['status_changed', $before->status],
+            'expires_at' => ['expiry_updated', $before->expiresAt],
+        ];
+
+        foreach ($changes as $field => [$changeType, $previous]) {
+            $new = $after[$field] ?? null;
+            if ((string) $previous === (string) $new) {
+                continue;
+            }
+
+            $this->recordHistory($before->id, $changeType, $previous, $new, $userId);
+        }
+    }
+
+    private function recordHistory(int $qrId, string $changeType, $previous, $new, int $userId): void {
+        global $wpdb;
+
+        $wpdb->insert(
+            Schema::destinationHistoryTable(),
+            [
+                'qr_id' => $qrId,
+                'change_type' => $changeType,
+                'previous_value' => $previous === null ? null : (string) $previous,
+                'new_value' => $new === null ? null : (string) $new,
+                'changed_by' => $userId > 0 ? $userId : null,
+                'changed_at' => current_time('mysql'),
+            ],
+            ['%d', '%s', '%s', '%s', '%d', '%s']
+        );
+    }
+
     private function uniqueShortcode(): string {
         do {
             $shortcode = $this->shortcodes->generate();
@@ -291,6 +384,22 @@ class QRRepository {
 
     private function hashIp(string $ip): string {
         return hash_hmac('sha256', $ip, wp_salt('auth'));
+    }
+
+    private function normalizeStatus(string $status): string {
+        return in_array($status, ['active', 'paused'], true) ? $status : 'active';
+    }
+
+    private function nullableUrl($url): ?string {
+        $url = trim((string) $url);
+
+        return $url === '' ? null : esc_url_raw($url);
+    }
+
+    private function nullableString($value): ?string {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     private function allowedOrderby(string $orderby): string {
