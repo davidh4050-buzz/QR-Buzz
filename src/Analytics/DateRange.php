@@ -49,10 +49,10 @@ class DateRange {
             return 1;
         }
 
-        if ($this->key === '30days') {
-            return 30;
+        if ($this->key === '7days') {
+            return 7;
         }
 
-        return 7;
+        return 30;
     }
 }
