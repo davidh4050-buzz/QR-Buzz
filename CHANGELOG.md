@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0
+- Added dedicated QR Buzz Analytics admin page
+- Added analytics date range filters for today, last 7 days, last 30 days, and all time
+- Added analytics summary cards for QR totals, scan totals, scans today, scans in the last 7 days, most scanned QR code, and latest scan
+- Added lightweight scan trend chart without a heavy charting dependency
+- Added top QR codes table sorted by scan count
+- Added recent scan activity feed with referrer, user-agent summary, and country placeholder
+- Added basic device type breakdown from stored user-agent data
+- Added basic browser family breakdown from stored user-agent data
+- Added analytics repository query layer and lightweight user-agent parser
+- Updated plugin metadata for v0.4.0
+
 ## 0.3.0
 - Added WordPress-native QR code list table
 - Added QR code search, pagination, and sortable columns

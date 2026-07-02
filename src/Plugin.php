@@ -2,6 +2,7 @@
 namespace QRBuzz;
 
 use QRBuzz\Admin\AdminPage;
+use QRBuzz\Admin\AnalyticsPage;
 use QRBuzz\Admin\DownloadController;
 use QRBuzz\Core\Requirements;
 use QRBuzz\Database\Installer;
@@ -24,6 +25,7 @@ class Plugin {
         if (is_admin()) {
             (new DownloadController($this->repository))->init();
             (new AdminPage($this->repository))->init();
+            (new AnalyticsPage())->init();
         }
     }
 
