@@ -73,7 +73,10 @@ class LocationPayloadBuilder implements PayloadBuilderInterface {
         $lat = trim((string) ($data['latitude'] ?? ''));
         $lng = trim((string) ($data['longitude'] ?? ''));
         $label = trim((string) ($data['label'] ?? ''));
-        $query = $label !== '' ? rawurlencode($label) : $lat . ',' . $lng;
-        return 'https://www.google.com/maps/search/?api=1&query=' . $query . ($lat !== '' && $lng !== '' ? '&query_place_id=' : '');
+        $query = $lat !== '' && $lng !== '' ? $lat . ',' . $lng : $label;
+        if ($label !== '' && $lat !== '' && $lng !== '') {
+            $query .= ' (' . $label . ')';
+        }
+        return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($query);
     }
 }
