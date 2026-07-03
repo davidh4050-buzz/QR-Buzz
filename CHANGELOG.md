@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0
+- Added QR type system for Dynamic URL, Static URL, WiFi, Business Card, Email, Phone, SMS, Location, and Text QR codes
+- Added static QR code support with direct payload encoding and no redirect tracking
+- Added payload builder service layer for type-specific QR payload formatting
+- Added QR Buzz dashboard navigation for Dashboard, QR Codes, Create QR, Analytics, and Settings
+- Added dashboard counts for dynamic and static QR codes plus quick actions
+- Added per-QR analytics pages for dynamic QR codes
+- Added static QR analytics message explaining the difference from tracked dynamic QR codes
+- Added deterministic QR Insights for scan activity, paused/expired state, scheduled destinations, and device usage
+- Updated downloads and list previews so dynamic codes encode tracking URLs and static codes encode direct payloads
+- Added database upgrade fields for type, payload data, static payload, and trackability
+- Migrated existing QR codes to `dynamic_url` while preserving shortcodes, tracking URLs, and analytics
+- Updated plugin metadata for v0.6.0
+
 ## 0.5.0
 - Added Dynamic Destinations so QR codes can change destination without changing shortcode, tracking URL, or printed QR image
 - Added active and paused status handling with computed expired state
