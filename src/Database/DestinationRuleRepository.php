@@ -34,7 +34,7 @@ class DestinationRuleRepository {
 
         $now = current_time('mysql');
         $row = $this->row($qrId, $data, $now, $now);
-        $wpdb->insert(Schema::destinationRulesTable(), $row, ['%d','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s']);
+        $wpdb->insert(Schema::destinationRulesTable(), $row, ['%d','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s']);
         $id = (int) $wpdb->insert_id;
         $this->recordHistory($qrId, 'rule_created', '', $row['name'], $userId);
 
@@ -51,7 +51,7 @@ class DestinationRuleRepository {
 
         $row = $this->row($before->qrId, $data, $before->createdAt, current_time('mysql'));
         unset($row['qr_id'], $row['created_at']);
-        $result = $wpdb->update(Schema::destinationRulesTable(), $row, ['id' => $id], ['%s','%d','%s','%s','%s','%s','%s','%s','%s','%s'], ['%d']);
+        $result = $wpdb->update(Schema::destinationRulesTable(), $row, ['id' => $id], ['%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s'], ['%d']);
 
         if ($result === false) {
             return false;
