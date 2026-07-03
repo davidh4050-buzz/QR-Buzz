@@ -146,11 +146,11 @@ class AdminPage {
         foreach ($this->types->all() as $key => $type) { echo '<option value="' . esc_attr($key) . '" ' . selected($selectedType, $key, false) . '>' . esc_html($type['label']) . '</option>'; }
         echo '</select></td></tr></tbody></table></div>';
         $this->renderTypeFields($selectedType, $payload, $editing);
-        if ($isEditing && $editing->isTrackable()) { $this->renderRedirectPreview($editing); $this->renderRules($editing); }
+        if ($isEditing && $editing->isTrackable()) { $this->renderRedirectPreview($editing); }
         submit_button($isEditing ? 'Update QR Code' : 'Create QR Code');
         if ($isEditing) { echo '<p><a href="' . esc_url(admin_url('admin.php?page=qr-buzz-codes')) . '">Cancel edit</a></p>'; }
         echo '</form>';
-        if ($isEditing && $editing->isTrackable()) { $this->renderHistory($editing); }
+        if ($isEditing && $editing->isTrackable()) { $this->renderRules($editing); $this->renderHistory($editing); }
     }
 
     private function renderTypeFields(string $selectedType, array $payload, ?QRCode $editing): void {
