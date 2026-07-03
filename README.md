@@ -1,8 +1,16 @@
 # QR Buzz
 
-QR Buzz is an open-core WordPress plugin for QR code management, dynamic destinations, and privacy-conscious scan analytics.
+QR Buzz is an open-core WordPress plugin for QR code management, dynamic destinations, static QR types, and privacy-conscious scan analytics.
 
-v0.5.0 is the Dynamic Destinations release. The key idea is simple: print once, change the destination anytime. QR codes keep the same tracking URL and shortcode while site owners can update the primary destination, pause codes, set fallback URLs, configure expiry, and schedule a temporary destination window.
+v0.6.0 is the QR Types & Per-QR Analytics release. QR Buzz now helps users choose what they want to achieve, not just paste a URL.
+
+## Dynamic vs Static QR Codes
+
+Dynamic QR codes use a QR Buzz tracking URL, allowing analytics and editable destinations.
+
+Static QR codes encode the final information directly into the QR image and do not collect analytics.
+
+Use Dynamic URL when you want tracking, editable destinations, scheduling, expiry, fallback URLs, and scan analytics. Use Static QR types for payloads like WiFi, business cards, phone numbers, SMS messages, map locations, and plain text where the final information should be encoded directly.
 
 ## Requirements
 
@@ -23,7 +31,21 @@ If you download a GitHub Actions artifact, unzip that download first. The artifa
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
 
-## Features in v0.5.0
+## Features in v0.6.0
+
+- QR type system for Dynamic URL, Static URL, WiFi, Business Card, Email, Phone, SMS, Location, and Text
+- Static QR support with direct payload encoding
+- Type-specific payload builders for cleaner architecture
+- Improved QR Buzz navigation: Dashboard, QR Codes, Create QR, Analytics, and Settings
+- Dashboard counts for total, dynamic, and static QR codes
+- Quick actions for common QR creation workflows
+- Per-QR analytics for dynamic QR codes
+- Static QR analytics explanation for non-trackable QR codes
+- Basic rule-based QR Insights
+- Type-aware QR previews and PNG/SVG downloads
+- Database upgrade support for existing v0.5.0 installs
+
+## Dynamic Destination Features
 
 - Edit a QR code destination without changing the shortcode, tracking URL, or printed QR image
 - Active and paused QR states, with expired state resolved from optional expiry time
@@ -34,7 +56,6 @@ If WordPress shows "The link you followed has expired" while uploading, the serv
 - Destination history for primary destination, schedule, fallback, status, and expiry changes
 - Central destination resolver for primary, scheduled, fallback, paused, and expired outcomes
 - Redirect outcome logging for resolved destination, resolution reason, and scan status
-- Database upgrade support for existing v0.4.0 installs
 
 ## Analytics Features
 
@@ -46,20 +67,8 @@ If WordPress shows "The link you followed has expired" while uploading, the serv
 - Recent scan activity feed with referrer, user-agent summary, and country placeholder
 - Basic mobile/desktop/tablet breakdown
 - Basic browser-family breakdown
-- Privacy-conscious analytics using existing hashed IP, user agent, referrer, and country fields
-
-## Core Platform Features
-
-- Create, edit, pause, and delete QR codes in WordPress admin
-- WordPress-native QR code list table with search, pagination, sorting, thumbnails, and row actions
-- Download PNG and SVG QR files
-- Generate local QR codes with `endroid/qr-code`
-- Encode dynamic tracking URLs such as `/q/ABC123`
-- 302 redirect scans to the resolved destination URL
-- Log scans to custom database tables
-- Hash visitor IP addresses instead of storing raw IPs
-- Composer-based development setup
-- GitHub Actions release ZIP generation
+- Individual QR analytics for dynamic QR codes
+- Privacy-conscious analytics using hashed IP, user agent, referrer, and country fields
 
 ## Database Tables
 
@@ -69,7 +78,7 @@ QR Buzz uses custom tables rather than a custom post type:
 - `wp_qrbuzz_scans`
 - `wp_qrbuzz_destination_history`
 
-Smart destination schedule and expiry values are entered in the WordPress site's timezone and stored as UTC timestamps for predictable comparisons. Existing scan analytics remain intact during upgrade.
+Existing QR codes are migrated to `dynamic_url` during upgrade. Existing shortcodes, tracking URLs, scan logs, and dynamic destination settings are preserved.
 
 ## Development
 
@@ -94,7 +103,7 @@ composer fix
 ## Release Process
 
 1. Merge the release branch into `main`.
-2. Tag the release, for example `v0.5.0`.
+2. Tag the release, for example `v0.6.0`.
 3. Push the tag to GitHub.
 4. The release workflow installs production dependencies and uploads `qr-buzz.zip` as a build artifact.
 
