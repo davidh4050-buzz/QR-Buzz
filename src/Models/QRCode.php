@@ -22,6 +22,8 @@ class QRCode {
     public array $payloadData;
     public ?string $staticPayload;
     public bool $isTrackable;
+    public ?int $campaignId;
+    public ?string $campaignName;
     public int $scanCount;
     public ?string $lastScan;
 
@@ -44,6 +46,8 @@ class QRCode {
         $qrCode->payloadData = self::decodePayloadData($row->payload_data ?? null);
         $qrCode->staticPayload = self::nullableString($row->static_payload ?? null);
         $qrCode->isTrackable = isset($row->is_trackable) ? (bool) $row->is_trackable : $qrCode->type === 'dynamic_url';
+        $qrCode->campaignId = isset($row->campaign_id) && $row->campaign_id !== null ? (int) $row->campaign_id : null;
+        $qrCode->campaignName = self::nullableString($row->campaign_name ?? null);
         $qrCode->scanCount = isset($row->scan_count) ? (int) $row->scan_count : 0;
         $qrCode->lastScan = isset($row->last_scan) && $row->last_scan !== null ? (string) $row->last_scan : null;
 
