@@ -38,7 +38,7 @@ class RedirectHandler {
         $shortcode = sanitize_text_field((string) $shortcode);
         $qrCode = $this->repository->findByShortcode($shortcode);
 
-        if (!$qrCode) {
+        if (!$qrCode || !$qrCode->isTrackable()) {
             status_header(404);
             nocache_headers();
             include get_query_template('404');
@@ -59,13 +59,10 @@ class RedirectHandler {
         $host = wp_parse_url($destinationUrl, PHP_URL_HOST);
 
         if ($host) {
-            add_filter(
-                'allowed_redirect_hosts',
-                static function(array $hosts) use ($host): array {
-                    $hosts[] = $host;
-                    return array_unique($hosts);
-                }
-            );
+            add_filter('allowed_redirect_hosts', static function(array $hosts) use ($host): array {
+                $hosts[] = $host;
+                return array_unique($hosts);
+            });
         }
 
         wp_safe_redirect(esc_url_raw($destinationUrl), 302);
