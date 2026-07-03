@@ -32,11 +32,17 @@ class Installer {
             scheduled_url text NULL,
             scheduled_start_at datetime NULL,
             scheduled_end_at datetime NULL,
+            type varchar(32) NOT NULL DEFAULT 'dynamic_url',
+            payload_data longtext NULL,
+            static_payload longtext NULL,
+            is_trackable tinyint(1) NOT NULL DEFAULT 1,
             PRIMARY KEY  (id),
             UNIQUE KEY shortcode (shortcode),
             KEY active (active),
             KEY status (status),
-            KEY expires_at (expires_at)
+            KEY expires_at (expires_at),
+            KEY type (type),
+            KEY is_trackable (is_trackable)
         ) {$charsetCollate};";
 
         $scansSql = "CREATE TABLE {$scansTable} (
@@ -75,6 +81,7 @@ class Installer {
         dbDelta($scansSql);
         dbDelta($historySql);
         self::backfillStatuses();
+        self::backfillTypes();
     }
 
     private static function backfillStatuses(): void {
@@ -83,5 +90,14 @@ class Installer {
         $qrcodesTable = Schema::qrcodesTable();
         $wpdb->query("UPDATE {$qrcodesTable} SET status = 'active' WHERE status = '' OR status IS NULL");
         $wpdb->query("UPDATE {$qrcodesTable} SET status = 'paused' WHERE active = 0 AND status = 'active'");
+    }
+
+    private static function backfillTypes(): void {
+        global $wpdb;
+
+        $qrcodesTable = Schema::qrcodesTable();
+        $wpdb->query("UPDATE {$qrcodesTable} SET type = 'dynamic_url' WHERE type = '' OR type IS NULL");
+        $wpdb->query("UPDATE {$qrcodesTable} SET is_trackable = 1 WHERE type = 'dynamic_url'");
+        $wpdb->query("UPDATE {$qrcodesTable} SET static_payload = destination_url WHERE type = 'dynamic_url' AND (static_payload IS NULL OR static_payload = '')");
     }
 }
