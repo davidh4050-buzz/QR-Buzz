@@ -60,15 +60,15 @@ class QRCodeListTable extends \WP_List_Table {
     }
 
     public function column_name(QRCode $item): string {
-        $editUrl = admin_url('admin.php?page=qr-buzz&qrbuzz_action=edit&qr_id=' . $item->id);
-        $deleteUrl = wp_nonce_url(admin_url('admin.php?page=qr-buzz&qrbuzz_action=delete&qr_id=' . $item->id), 'qrbuzz_delete_qr_' . $item->id);
+        $editUrl = admin_url('admin.php?page=qr-buzz-codes&qrbuzz_action=edit&qr_id=' . $item->id);
+        $deleteUrl = wp_nonce_url(admin_url('admin.php?page=qr-buzz-codes&qrbuzz_action=delete&qr_id=' . $item->id), 'qrbuzz_delete_qr_' . $item->id);
         $pngUrl = $this->downloadUrl($item, 'png');
         $svgUrl = $this->generator->supportsSvg() ? $this->downloadUrl($item, 'svg') : '';
         $actions = ['edit' => '<a href="' . esc_url($editUrl) . '">Edit</a>'];
 
         if ($item->isTrackable()) {
             $isPaused = $item->effectiveStatus() === 'paused';
-            $toggleUrl = wp_nonce_url(admin_url('admin.php?page=qr-buzz&qrbuzz_action=' . ($isPaused ? 'activate' : 'deactivate') . '&qr_id=' . $item->id), 'qrbuzz_toggle_qr_' . $item->id);
+            $toggleUrl = wp_nonce_url(admin_url('admin.php?page=qr-buzz-codes&qrbuzz_action=' . ($isPaused ? 'activate' : 'deactivate') . '&qr_id=' . $item->id), 'qrbuzz_toggle_qr_' . $item->id);
             $analyticsUrl = admin_url('admin.php?page=qr-buzz-analytics&qr_id=' . $item->id);
             $actions['analytics'] = '<a href="' . esc_url($analyticsUrl) . '">View Analytics</a>';
             $actions['toggle'] = '<a href="' . esc_url($toggleUrl) . '">' . esc_html($isPaused ? 'Activate' : 'Pause') . '</a>';
