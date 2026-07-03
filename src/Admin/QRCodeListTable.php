@@ -2,6 +2,7 @@
 namespace QRBuzz\Admin;
 
 use QRBuzz\Core\Requirements;
+use QRBuzz\Database\CampaignRepository;
 use QRBuzz\Database\QRRepository;
 use QRBuzz\Models\QRCode;
 use QRBuzz\QR\QRGenerator;
@@ -18,13 +19,16 @@ class QRCodeListTable extends \WP_List_Table {
     private QRGenerator $generator;
     private QRPayloadService $payloads;
     private QRTypeRegistry $types;
+    private CampaignRepository $campaigns;
+    private int $campaignId = 0;
 
-    public function __construct(QRRepository $repository, ?QRGenerator $generator = null, ?QRPayloadService $payloads = null, ?QRTypeRegistry $types = null) {
+    public function __construct(QRRepository $repository, ?QRGenerator $generator = null, ?QRPayloadService $payloads = null, ?QRTypeRegistry $types = null, ?CampaignRepository $campaigns = null) {
         parent::__construct(['singular' => 'qr_code', 'plural' => 'qr_codes', 'ajax' => false]);
         $this->repository = $repository;
         $this->generator = $generator ?: new QRGenerator();
         $this->types = $types ?: new QRTypeRegistry();
         $this->payloads = $payloads ?: new QRPayloadService($this->types, $this->generator);
+        $this->campaigns = $campaigns ?: new CampaignRepository();
     }
 
     public function prepare_items(): void {
@@ -33,19 +37,31 @@ class QRCodeListTable extends \WP_List_Table {
         $search = isset($_REQUEST['s']) ? sanitize_text_field(wp_unslash($_REQUEST['s'])) : '';
         $orderby = isset($_REQUEST['orderby']) ? sanitize_key(wp_unslash($_REQUEST['orderby'])) : 'created_at';
         $order = isset($_REQUEST['order']) ? sanitize_key(wp_unslash($_REQUEST['order'])) : 'desc';
-        $totalItems = $this->repository->count($search);
+        $this->campaignId = isset($_REQUEST['campaign_id']) ? absint($_REQUEST['campaign_id']) : 0;
+        $totalItems = $this->repository->count($search, $this->campaignId);
 
         $this->_column_headers = [$this->get_columns(), [], $this->get_sortable_columns()];
-        $this->items = $this->repository->queryWithScanCounts($search, $currentPage, $perPage, $orderby, $order);
+        $this->items = $this->repository->queryWithScanCounts($search, $currentPage, $perPage, $orderby, $order, $this->campaignId);
         $this->set_pagination_args(['total_items' => $totalItems, 'per_page' => $perPage, 'total_pages' => max(1, (int) ceil($totalItems / $perPage))]);
     }
 
     public function get_columns(): array {
-        return ['preview' => 'QR', 'name' => 'Name', 'type' => 'Type', 'destination_url' => 'Payload / Destination', 'tracking_url' => 'Tracking', 'scan_count' => 'Scans', 'created_at' => 'Created', 'active' => 'Status'];
+        return ['preview' => 'QR', 'name' => 'Name', 'type' => 'Type', 'campaign' => 'Campaign', 'destination_url' => 'Payload / Destination', 'tracking_url' => 'Tracking', 'scan_count' => 'Scans', 'created_at' => 'Created', 'active' => 'Status'];
     }
 
     public function get_sortable_columns(): array {
-        return ['name' => ['name', false], 'type' => ['type', false], 'scan_count' => ['scan_count', true], 'created_at' => ['created_at', true], 'active' => ['active', false]];
+        return ['name' => ['name', false], 'type' => ['type', false], 'campaign' => ['campaign', false], 'scan_count' => ['scan_count', true], 'created_at' => ['created_at', true], 'active' => ['active', false]];
+    }
+
+    protected function extra_tablenav($which): void {
+        if ($which !== 'top') { return; }
+        echo '<div class="alignleft actions"><label class="screen-reader-text" for="qrbuzz-campaign-filter">Filter by campaign</label><select id="qrbuzz-campaign-filter" name="campaign_id"><option value="0">All campaigns</option>';
+        foreach ($this->campaigns->all() as $campaign) {
+            echo '<option value="' . esc_attr($campaign->id) . '" ' . selected($this->campaignId, $campaign->id, false) . '>' . esc_html($campaign->name) . '</option>';
+        }
+        echo '</select>';
+        submit_button('Filter', 'secondary', 'filter_action', false);
+        echo '</div>';
     }
 
     public function no_items(): void { esc_html_e('No QR codes found. Create your first QR code above.', 'qr-buzz'); }
@@ -83,6 +99,7 @@ class QRCodeListTable extends \WP_List_Table {
     }
 
     public function column_type(QRCode $item): string { return esc_html($this->types->label($item->type)); }
+    public function column_campaign(QRCode $item): string { return $item->campaignName ? esc_html($item->campaignName) : '<span class="description">Unassigned</span>'; }
 
     public function column_destination_url(QRCode $item): string {
         if ($item->isTrackable()) {
