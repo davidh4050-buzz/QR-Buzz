@@ -18,6 +18,10 @@ class QRCode {
     public ?string $scheduledUrl;
     public ?string $scheduledStartAt;
     public ?string $scheduledEndAt;
+    public string $type;
+    public array $payloadData;
+    public ?string $staticPayload;
+    public bool $isTrackable;
     public int $scanCount;
     public ?string $lastScan;
 
@@ -36,6 +40,10 @@ class QRCode {
         $qrCode->scheduledUrl = self::nullableString($row->scheduled_url ?? null);
         $qrCode->scheduledStartAt = self::nullableString($row->scheduled_start_at ?? null);
         $qrCode->scheduledEndAt = self::nullableString($row->scheduled_end_at ?? null);
+        $qrCode->type = isset($row->type) && (string) $row->type !== '' ? (string) $row->type : 'dynamic_url';
+        $qrCode->payloadData = self::decodePayloadData($row->payload_data ?? null);
+        $qrCode->staticPayload = self::nullableString($row->static_payload ?? null);
+        $qrCode->isTrackable = isset($row->is_trackable) ? (bool) $row->is_trackable : $qrCode->type === 'dynamic_url';
         $qrCode->scanCount = isset($row->scan_count) ? (int) $row->scan_count : 0;
         $qrCode->lastScan = isset($row->last_scan) && $row->last_scan !== null ? (string) $row->last_scan : null;
 
@@ -56,6 +64,10 @@ class QRCode {
         return $expiresTimestamp <= ($timestamp ?: current_time('timestamp', true));
     }
 
+    public function isTrackable(): bool {
+        return $this->isTrackable && $this->type === 'dynamic_url';
+    }
+
     private static function nullableString($value): ?string {
         if ($value === null) {
             return null;
@@ -63,5 +75,14 @@ class QRCode {
 
         $value = trim((string) $value);
         return $value === '' ? null : $value;
+    }
+
+    private static function decodePayloadData($value): array {
+        if (!$value) {
+            return [];
+        }
+
+        $decoded = json_decode((string) $value, true);
+        return is_array($decoded) ? $decoded : [];
     }
 }
