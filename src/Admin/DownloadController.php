@@ -4,15 +4,18 @@ namespace QRBuzz\Admin;
 use QRBuzz\Database\QRRepository;
 use QRBuzz\Models\QRCode;
 use QRBuzz\QR\QRGenerator;
+use QRBuzz\QR\Types\QRPayloadService;
 
 class DownloadController {
 
     private QRRepository $repository;
     private QRGenerator $generator;
+    private QRPayloadService $payloads;
 
-    public function __construct(?QRRepository $repository = null, ?QRGenerator $generator = null) {
+    public function __construct(?QRRepository $repository = null, ?QRGenerator $generator = null, ?QRPayloadService $payloads = null) {
         $this->repository = $repository ?: new QRRepository();
         $this->generator = $generator ?: new QRGenerator();
+        $this->payloads = $payloads ?: new QRPayloadService(null, $this->generator);
     }
 
     public function init(): void {
@@ -22,16 +25,14 @@ class DownloadController {
 
     public function downloadPng(): void {
         $qrCode = $this->authorisedQrCode();
-        $trackingUrl = $this->generator->trackingUrl($qrCode->shortcode);
-        $content = $this->generator->generatePng($trackingUrl);
+        $content = $this->generator->generatePng($this->payloads->payloadForQrCode($qrCode));
 
         $this->sendDownload($content, $this->filename($qrCode, 'png'), 'image/png');
     }
 
     public function downloadSvg(): void {
         $qrCode = $this->authorisedQrCode();
-        $trackingUrl = $this->generator->trackingUrl($qrCode->shortcode);
-        $content = $this->generator->generateSvg($trackingUrl);
+        $content = $this->generator->generateSvg($this->payloads->payloadForQrCode($qrCode));
 
         $this->sendDownload($content, $this->filename($qrCode, 'svg'), 'image/svg+xml');
     }
