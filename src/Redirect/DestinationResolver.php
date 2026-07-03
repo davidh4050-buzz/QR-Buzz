@@ -1,10 +1,18 @@
 <?php
 namespace QRBuzz\Redirect;
 
+use QRBuzz\Database\DestinationRuleRepository;
+use QRBuzz\Models\DestinationRule;
 use QRBuzz\Models\QRCode;
 use QRBuzz\Utils\DateTimeHelper;
 
 class DestinationResolver {
+
+    private DestinationRuleRepository $rules;
+
+    public function __construct(?DestinationRuleRepository $rules = null) {
+        $this->rules = $rules ?: new DestinationRuleRepository();
+    }
 
     public function resolve(QRCode $qrCode, ?int $timestamp = null): Resolution {
         $timestamp = $timestamp ?: current_time('timestamp', true);
@@ -15,6 +23,18 @@ class DestinationResolver {
 
         if ($qrCode->status === 'paused' || !$qrCode->active) {
             return $this->fallbackOrMessage($qrCode, 'paused', 'paused', 'This QR code is currently paused.');
+        }
+
+        foreach ($this->rules->forQrCode($qrCode->id, true) as $rule) {
+            if (!$this->ruleMatches($rule, $timestamp)) {
+                continue;
+            }
+
+            if ($this->isValidUrl($rule->destinationUrl)) {
+                return Resolution::redirect($rule->destinationUrl, 'smart_rule', 'redirected', $rule->id, $rule->name);
+            }
+
+            return $this->fallbackOrMessage($qrCode, 'fallback', 'rule_unavailable', 'The smart destination rule is unavailable.');
         }
 
         if ($this->scheduleIsActive($qrCode, $timestamp)) {
@@ -33,11 +53,56 @@ class DestinationResolver {
     }
 
     public function activeScheduleLabel(QRCode $qrCode, ?int $timestamp = null): string {
+        $resolution = $this->resolve($qrCode, $timestamp);
+        if ($resolution->matchedRuleName) {
+            return $resolution->matchedRuleName;
+        }
+
         if (!$this->scheduleIsActive($qrCode, $timestamp ?: current_time('timestamp', true))) {
             return '-';
         }
 
         return DateTimeHelper::utcToDisplay($qrCode->scheduledStartAt) . ' to ' . DateTimeHelper::utcToDisplay($qrCode->scheduledEndAt);
+    }
+
+    public function ruleMatches(DestinationRule $rule, int $timestamp): bool {
+        if (!$rule->isActive()) {
+            return false;
+        }
+
+        if ($rule->startsAt) {
+            $start = DateTimeHelper::utcTimestamp($rule->startsAt);
+            if ($start && $timestamp < $start) {
+                return false;
+            }
+        }
+
+        if ($rule->endsAt) {
+            $end = DateTimeHelper::utcTimestamp($rule->endsAt);
+            if ($end && $timestamp > $end) {
+                return false;
+            }
+        }
+
+        $days = $rule->dayNumbers();
+        if ($days) {
+            $day = (int) wp_date('N', $timestamp, wp_timezone());
+            if (!in_array($day, $days, true)) {
+                return false;
+            }
+        }
+
+        if ($rule->timeStart || $rule->timeEnd) {
+            $time = wp_date('H:i', $timestamp, wp_timezone());
+            if ($rule->timeStart && $time < $rule->timeStart) {
+                return false;
+            }
+            if ($rule->timeEnd && $time > $rule->timeEnd) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function fallbackOrMessage(QRCode $qrCode, string $reason, string $scanStatus, string $message): Resolution {
