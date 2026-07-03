@@ -20,24 +20,20 @@ class QRRepository {
     public function allWithScanCounts(): array { return $this->queryWithScanCounts(); }
 
     /** @return QRCode[] */
-    public function queryWithScanCounts(string $search = '', int $page = 1, int $perPage = 20, string $orderby = 'created_at', string $order = 'DESC'): array {
+    public function queryWithScanCounts(string $search = '', int $page = 1, int $perPage = 20, string $orderby = 'created_at', string $order = 'DESC', int $campaignId = 0): array {
         global $wpdb;
 
         $qrcodesTable = Schema::qrcodesTable();
         $scansTable = Schema::scansTable();
+        $campaignsTable = Schema::campaignsTable();
         $orderby = $this->allowedOrderby($orderby);
         $order = strtoupper($order) === 'ASC' ? 'ASC' : 'DESC';
         $offset = max(0, ($page - 1) * $perPage);
-        $where = '';
-        $params = [];
+        [$where, $params] = $this->managementWhere($search, $campaignId);
 
-        if ($search !== '') {
-            $where = 'WHERE q.name LIKE %s';
-            $params[] = '%' . $wpdb->esc_like($search) . '%';
-        }
-
-        $sql = "SELECT q.*, COALESCE(stats.scan_count, 0) AS scan_count, stats.last_scan
+        $sql = "SELECT q.*, c.name AS campaign_name, COALESCE(stats.scan_count, 0) AS scan_count, stats.last_scan
              FROM {$qrcodesTable} q
+             LEFT JOIN {$campaignsTable} c ON c.id = q.campaign_id
              LEFT JOIN (
                 SELECT qr_id, COUNT(id) AS scan_count, MAX(scanned_at) AS last_scan
                 FROM {$scansTable}
@@ -54,15 +50,13 @@ class QRRepository {
         return array_map([QRCode::class, 'fromRow'], $rows ?: []);
     }
 
-    public function count(string $search = ''): int {
+    public function count(string $search = '', int $campaignId = 0): int {
         global $wpdb;
         $qrcodesTable = Schema::qrcodesTable();
+        [$where, $params] = $this->managementWhere($search, $campaignId);
+        $sql = "SELECT COUNT(*) FROM {$qrcodesTable} q {$where}";
 
-        if ($search === '') {
-            return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$qrcodesTable}");
-        }
-
-        return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$qrcodesTable} WHERE name LIKE %s", '%' . $wpdb->esc_like($search) . '%'));
+        return $params ? (int) $wpdb->get_var($wpdb->prepare($sql, ...$params)) : (int) $wpdb->get_var($sql);
     }
 
     public function countTrackable(bool $trackable): int {
@@ -75,9 +69,11 @@ class QRRepository {
 
         $qrcodesTable = Schema::qrcodesTable();
         $scansTable = Schema::scansTable();
+        $campaignsTable = Schema::campaignsTable();
         $row = $wpdb->get_row($wpdb->prepare(
-            "SELECT q.*, COALESCE(stats.scan_count, 0) AS scan_count, stats.last_scan
+            "SELECT q.*, c.name AS campaign_name, COALESCE(stats.scan_count, 0) AS scan_count, stats.last_scan
              FROM {$qrcodesTable} q
+             LEFT JOIN {$campaignsTable} c ON c.id = q.campaign_id
              LEFT JOIN (
                 SELECT qr_id, COUNT(id) AS scan_count, MAX(scanned_at) AS last_scan
                 FROM {$scansTable}
@@ -127,8 +123,9 @@ class QRRepository {
                 'payload_data' => $payloadData,
                 'static_payload' => $staticPayload,
                 'is_trackable' => $isTrackable ? 1 : 0,
+                'campaign_id' => $this->nullableId($settings['campaign_id'] ?? 0),
             ],
-            ['%s','%s','%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d']
+            ['%s','%s','%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d']
         );
 
         return (int) $wpdb->insert_id;
@@ -156,13 +153,14 @@ class QRRepository {
             'payload_data' => $this->payloadData($settings['payload_data'] ?? []),
             'static_payload' => $this->nullableString($settings['static_payload'] ?? ($isTrackable ? $destinationUrl : '')),
             'is_trackable' => $isTrackable ? 1 : 0,
+            'campaign_id' => $this->nullableId($settings['campaign_id'] ?? 0),
         ];
 
         $result = $wpdb->update(
             Schema::qrcodesTable(),
             $data,
             ['id' => $id],
-            ['%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d'],
+            ['%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d'],
             ['%d']
         );
 
@@ -188,6 +186,7 @@ class QRRepository {
         global $wpdb;
         $wpdb->delete(Schema::scansTable(), ['qr_id' => $id], ['%d']);
         $wpdb->delete(Schema::destinationHistoryTable(), ['qr_id' => $id], ['%d']);
+        $wpdb->delete(Schema::destinationRulesTable(), ['qr_id' => $id], ['%d']);
         $result = $wpdb->delete(Schema::qrcodesTable(), ['id' => $id], ['%d']);
         return $result !== false;
     }
@@ -298,14 +297,30 @@ class QRRepository {
         return $shortcode;
     }
 
+    private function managementWhere(string $search, int $campaignId): array {
+        global $wpdb;
+        $where = [];
+        $params = [];
+        if ($search !== '') {
+            $where[] = 'q.name LIKE %s';
+            $params[] = '%' . $wpdb->esc_like($search) . '%';
+        }
+        if ($campaignId > 0) {
+            $where[] = 'q.campaign_id = %d';
+            $params[] = $campaignId;
+        }
+        return [$where ? 'WHERE ' . implode(' AND ', $where) : '', $params];
+    }
+
     private function hashIp(string $ip): string { return hash_hmac('sha256', $ip, wp_salt('auth')); }
     private function normalizeStatus(string $status): string { return in_array($status, ['active', 'paused'], true) ? $status : 'active'; }
     private function nullableUrl($url): ?string { $url = trim((string) $url); return $url === '' ? null : esc_url_raw($url); }
     private function nullableString($value): ?string { $value = trim((string) $value); return $value === '' ? null : $value; }
+    private function nullableId($value): ?int { $id = absint($value); return $id > 0 ? $id : null; }
     private function payloadData($value): ?string { return wp_json_encode(is_array($value) ? $value : []); }
 
     private function allowedOrderby(string $orderby): string {
-        $allowed = ['name' => 'q.name', 'created_at' => 'q.created_at', 'active' => 'q.active', 'scan_count' => 'scan_count', 'type' => 'q.type'];
+        $allowed = ['name' => 'q.name', 'created_at' => 'q.created_at', 'active' => 'q.active', 'scan_count' => 'scan_count', 'type' => 'q.type', 'campaign' => 'c.name'];
         return $allowed[$orderby] ?? $allowed['created_at'];
     }
 }
