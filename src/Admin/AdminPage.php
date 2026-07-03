@@ -59,6 +59,7 @@ class AdminPage {
         echo '<div class="qrbuzz-card"><span>Total Scans</span><strong>' . esc_html((string) $summary['total_scans']) . '</strong></div>';
         echo '<div class="qrbuzz-card"><span>Top QR Code</span><strong>' . esc_html($mostScanned && $mostScanned->scanCount > 0 ? $mostScanned->name : '-') . '</strong></div>';
         echo '</div><div class="qrbuzz-actions">';
+        echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=qr-buzz-codes')) . '">QR Codes</a>';
         echo '<a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=qr-buzz-create&type=dynamic_url')) . '">Create Dynamic QR</a>';
         echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=qr-buzz-create&type=wifi')) . '">Create WiFi QR</a>';
         echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=qr-buzz-create&type=vcard')) . '">Create Business Card QR</a>';
