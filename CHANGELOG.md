@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0
+- Added Campaigns with create, edit, archive/unarchive, safe delete, and campaign analytics workflows
+- Added campaign assignment for dynamic and static QR codes
+- Added campaign column and campaign filter to the QR code list
+- Added campaign-level analytics for QR totals, dynamic/static split, scans, top QR code, trend, recent activity, referrers, devices, and browsers
+- Added Smart Destinations rule table and repository for time-based destination rules
+- Added date range, day-of-week, and time-of-day rule conditions
+- Added Smart Destinations rule builder on dynamic QR edit screens
+- Added admin destination simulator with future date/time testing
+- Updated the destination resolver so paused and expired states override rules, active rules run by priority, and primary destination remains the fallback
+- Migrated existing v0.5/v0.6 scheduled destination fields into legacy-labelled Smart Destination rules while keeping the old fields for compatibility
+- Extended destination history to include rule create/update/delete/activation changes
+- Expanded QR Insights with Smart Destination and fallback recommendations
+- Added campaign insights for no-scan, static QR, and scan trend states
+- Updated plugin metadata for v0.7.0
+
 ## 0.6.0
 - Added QR type system for Dynamic URL, Static URL, WiFi, Business Card, Email, Phone, SMS, Location, and Text QR codes
 - Added static QR code support with direct payload encoding and no redirect tracking

@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: QR Buzz
- * Description: QR code management and analytics for WordPress (v0.6.0)
- * Version: 0.6.0
+ * Description: QR code management, campaigns, smart destinations, and analytics for WordPress (v0.7.0)
+ * Version: 0.7.0
  * Requires PHP: 8.3
  * Requires at least: 7.0
  * Author: QR Buzz
@@ -10,7 +10,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('QR_BUZZ_VERSION', '0.6.0');
+define('QR_BUZZ_VERSION', '0.7.0');
 define('QR_BUZZ_PATH', plugin_dir_path(__FILE__));
 define('QR_BUZZ_URL', plugin_dir_url(__FILE__));
 

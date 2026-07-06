@@ -17,6 +17,8 @@ class Installer {
         $qrcodesTable = Schema::qrcodesTable();
         $scansTable = Schema::scansTable();
         $historyTable = Schema::destinationHistoryTable();
+        $campaignsTable = Schema::campaignsTable();
+        $rulesTable = Schema::destinationRulesTable();
 
         $qrcodesSql = "CREATE TABLE {$qrcodesTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -36,13 +38,15 @@ class Installer {
             payload_data longtext NULL,
             static_payload longtext NULL,
             is_trackable tinyint(1) NOT NULL DEFAULT 1,
+            campaign_id bigint(20) unsigned NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY shortcode (shortcode),
             KEY active (active),
             KEY status (status),
             KEY expires_at (expires_at),
             KEY type (type),
-            KEY is_trackable (is_trackable)
+            KEY is_trackable (is_trackable),
+            KEY campaign_id (campaign_id)
         ) {$charsetCollate};";
 
         $scansSql = "CREATE TABLE {$scansTable} (
@@ -77,11 +81,51 @@ class Installer {
             KEY changed_at (changed_at)
         ) {$charsetCollate};";
 
+        $campaignsSql = "CREATE TABLE {$campaignsTable} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            name varchar(191) NOT NULL,
+            slug varchar(191) NOT NULL,
+            description text NULL,
+            status varchar(20) NOT NULL DEFAULT 'active',
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY slug (slug),
+            KEY status (status)
+        ) {$charsetCollate};";
+
+        $rulesSql = "CREATE TABLE {$rulesTable} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            qr_id bigint(20) unsigned NOT NULL,
+            name varchar(191) NOT NULL,
+            priority int(11) NOT NULL DEFAULT 10,
+            status varchar(20) NOT NULL DEFAULT 'active',
+            destination_url text NOT NULL,
+            conditions_json longtext NULL,
+            starts_at datetime NULL,
+            ends_at datetime NULL,
+            days_of_week varchar(32) NULL,
+            time_start varchar(5) NULL,
+            time_end varchar(5) NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            KEY qr_id (qr_id),
+            KEY priority (priority),
+            KEY status (status),
+            KEY starts_at (starts_at),
+            KEY ends_at (ends_at)
+        ) {$charsetCollate};";
+
         dbDelta($qrcodesSql);
         dbDelta($scansSql);
         dbDelta($historySql);
+        dbDelta($campaignsSql);
+        dbDelta($rulesSql);
         self::backfillStatuses();
         self::backfillTypes();
+        self::backfillCampaigns();
+        (new DestinationRuleRepository())->migrateLegacyScheduledDestinations();
     }
 
     private static function backfillStatuses(): void {
@@ -99,5 +143,12 @@ class Installer {
         $wpdb->query("UPDATE {$qrcodesTable} SET type = 'dynamic_url' WHERE type = '' OR type IS NULL");
         $wpdb->query("UPDATE {$qrcodesTable} SET is_trackable = 1 WHERE type = 'dynamic_url'");
         $wpdb->query("UPDATE {$qrcodesTable} SET static_payload = destination_url WHERE type = 'dynamic_url' AND (static_payload IS NULL OR static_payload = '')");
+    }
+
+    private static function backfillCampaigns(): void {
+        global $wpdb;
+
+        $qrcodesTable = Schema::qrcodesTable();
+        $wpdb->query("UPDATE {$qrcodesTable} SET campaign_id = NULL WHERE campaign_id = 0");
     }
 }

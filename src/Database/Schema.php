@@ -17,4 +17,14 @@ class Schema {
         global $wpdb;
         return $wpdb->prefix . 'qrbuzz_destination_history';
     }
+
+    public static function campaignsTable(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'qrbuzz_campaigns';
+    }
+
+    public static function destinationRulesTable(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'qrbuzz_destination_rules';
+    }
 }
