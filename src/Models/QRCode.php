@@ -24,6 +24,14 @@ class QRCode {
     public bool $isTrackable;
     public ?int $campaignId;
     public ?string $campaignName;
+    public string $theme;
+    public string $foregroundColor;
+    public string $backgroundColor;
+    public bool $transparentBackground;
+    public string $errorCorrection;
+    public int $margin;
+    public int $logoAttachmentId;
+    public int $logoSize;
     public int $scanCount;
     public ?string $lastScan;
 
@@ -48,6 +56,14 @@ class QRCode {
         $qrCode->isTrackable = isset($row->is_trackable) ? (bool) $row->is_trackable : $qrCode->type === 'dynamic_url';
         $qrCode->campaignId = isset($row->campaign_id) && $row->campaign_id !== null ? (int) $row->campaign_id : null;
         $qrCode->campaignName = self::nullableString($row->campaign_name ?? null);
+        $qrCode->theme = isset($row->theme) && (string) $row->theme !== '' ? (string) $row->theme : 'classic';
+        $qrCode->foregroundColor = isset($row->foreground_color) && (string) $row->foreground_color !== '' ? (string) $row->foreground_color : '#000000';
+        $qrCode->backgroundColor = isset($row->background_color) && (string) $row->background_color !== '' ? (string) $row->background_color : '#ffffff';
+        $qrCode->transparentBackground = !empty($row->transparent_background);
+        $qrCode->errorCorrection = isset($row->error_correction) && (string) $row->error_correction !== '' ? (string) $row->error_correction : 'H';
+        $qrCode->margin = isset($row->margin) ? (int) $row->margin : 12;
+        $qrCode->logoAttachmentId = isset($row->logo_attachment_id) ? (int) $row->logo_attachment_id : 0;
+        $qrCode->logoSize = isset($row->logo_size) ? (int) $row->logo_size : 20;
         $qrCode->scanCount = isset($row->scan_count) ? (int) $row->scan_count : 0;
         $qrCode->lastScan = isset($row->last_scan) && $row->last_scan !== null ? (string) $row->last_scan : null;
 
