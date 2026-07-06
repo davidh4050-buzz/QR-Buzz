@@ -2,6 +2,7 @@
 namespace QRBuzz\Database;
 
 use QRBuzz\Models\QRCode;
+use QRBuzz\QR\Design\QRDesignSettings;
 use QRBuzz\QR\Types\QRTypeRegistry;
 use QRBuzz\Redirect\Resolution;
 use QRBuzz\Utils\ShortcodeGenerator;
@@ -103,6 +104,7 @@ class QRRepository {
         $isTrackable = $this->types->isTrackable($type);
         $payloadData = $this->payloadData($settings['payload_data'] ?? []);
         $staticPayload = $this->nullableString($settings['static_payload'] ?? ($isTrackable ? $destinationUrl : ''));
+        $design = new QRDesignSettings($settings['design'] ?? []);
 
         $wpdb->insert(
             Schema::qrcodesTable(),
@@ -124,8 +126,16 @@ class QRRepository {
                 'static_payload' => $staticPayload,
                 'is_trackable' => $isTrackable ? 1 : 0,
                 'campaign_id' => $this->nullableId($settings['campaign_id'] ?? 0),
+                'theme' => $design->theme,
+                'foreground_color' => $design->foregroundColor,
+                'background_color' => $design->backgroundColor,
+                'transparent_background' => $design->transparentBackground ? 1 : 0,
+                'error_correction' => $design->errorCorrection,
+                'margin' => $design->margin,
+                'logo_attachment_id' => $this->nullableId($design->logoAttachmentId),
+                'logo_size' => $design->logoSize,
             ],
-            ['%s','%s','%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d']
+            ['%s','%s','%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d','%s','%s','%s','%d','%s','%d','%d','%d']
         );
 
         return (int) $wpdb->insert_id;
@@ -138,6 +148,7 @@ class QRRepository {
         $status = $this->normalizeStatus($status);
         $type = $this->types->normalize((string) ($settings['type'] ?? ($before ? $before->type : QRTypeRegistry::DYNAMIC_URL)));
         $isTrackable = $this->types->isTrackable($type);
+        $design = new QRDesignSettings($settings['design'] ?? []);
         $data = [
             'name' => $name,
             'destination_url' => $destinationUrl,
@@ -154,13 +165,21 @@ class QRRepository {
             'static_payload' => $this->nullableString($settings['static_payload'] ?? ($isTrackable ? $destinationUrl : '')),
             'is_trackable' => $isTrackable ? 1 : 0,
             'campaign_id' => $this->nullableId($settings['campaign_id'] ?? 0),
+            'theme' => $design->theme,
+            'foreground_color' => $design->foregroundColor,
+            'background_color' => $design->backgroundColor,
+            'transparent_background' => $design->transparentBackground ? 1 : 0,
+            'error_correction' => $design->errorCorrection,
+            'margin' => $design->margin,
+            'logo_attachment_id' => $this->nullableId($design->logoAttachmentId),
+            'logo_size' => $design->logoSize,
         ];
 
         $result = $wpdb->update(
             Schema::qrcodesTable(),
             $data,
             ['id' => $id],
-            ['%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d'],
+            ['%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d','%s','%s','%s','%d','%s','%d','%d','%d'],
             ['%d']
         );
 

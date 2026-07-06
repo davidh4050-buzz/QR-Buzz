@@ -5,6 +5,7 @@ use QRBuzz\Core\Requirements;
 use QRBuzz\Database\CampaignRepository;
 use QRBuzz\Database\QRRepository;
 use QRBuzz\Models\QRCode;
+use QRBuzz\QR\Design\QRDesignSettings;
 use QRBuzz\QR\QRGenerator;
 use QRBuzz\QR\Types\QRPayloadService;
 use QRBuzz\QR\Types\QRTypeRegistry;
@@ -64,12 +65,12 @@ class QRCodeListTable extends \WP_List_Table {
         echo '</div>';
     }
 
-    public function no_items(): void { esc_html_e('No QR codes found. Create your first QR code above.', 'qr-buzz'); }
+    public function no_items(): void { esc_html_e('Create your first QR asset. Start with a dynamic website QR, WiFi QR, or business card QR.', 'qr-buzz'); }
 
     public function column_preview(QRCode $item): string {
         if (!Requirements::dependenciesLoaded()) { return '<span class="description">Unavailable</span>'; }
         try {
-            return '<img src="' . esc_attr($this->generator->generatePngDataUri($this->payloads->payloadForQrCode($item), 80)) . '" width="80" height="80" alt="" />';
+            return '<img class="qrbuzz-thumb" src="' . esc_attr($this->generator->generatePngDataUri($this->payloads->payloadForQrCode($item), 80, QRDesignSettings::fromQrCode($item))) . '" width="80" height="80" alt="" />';
         } catch (\Throwable $exception) {
             return '<span class="description">Unavailable</span>';
         }
@@ -80,7 +81,7 @@ class QRCodeListTable extends \WP_List_Table {
         $deleteUrl = wp_nonce_url(admin_url('admin.php?page=qr-buzz-codes&qrbuzz_action=delete&qr_id=' . $item->id), 'qrbuzz_delete_qr_' . $item->id);
         $pngUrl = $this->downloadUrl($item, 'png');
         $svgUrl = $this->generator->supportsSvg() ? $this->downloadUrl($item, 'svg') : '';
-        $actions = ['edit' => '<a href="' . esc_url($editUrl) . '">Edit</a>'];
+        $actions = ['edit' => '<a href="' . esc_url($editUrl) . '">Open QR Studio</a>'];
 
         if ($item->isTrackable()) {
             $isPaused = $item->effectiveStatus() === 'paused';

@@ -3,6 +3,7 @@ namespace QRBuzz\Admin;
 
 use QRBuzz\Database\QRRepository;
 use QRBuzz\Models\QRCode;
+use QRBuzz\QR\Design\QRDesignSettings;
 use QRBuzz\QR\QRGenerator;
 use QRBuzz\QR\Types\QRPayloadService;
 
@@ -25,14 +26,14 @@ class DownloadController {
 
     public function downloadPng(): void {
         $qrCode = $this->authorisedQrCode();
-        $content = $this->generator->generatePng($this->payloads->payloadForQrCode($qrCode));
+        $content = $this->generator->generatePng($this->payloads->payloadForQrCode($qrCode), 600, QRDesignSettings::fromQrCode($qrCode));
 
         $this->sendDownload($content, $this->filename($qrCode, 'png'), 'image/png');
     }
 
     public function downloadSvg(): void {
         $qrCode = $this->authorisedQrCode();
-        $content = $this->generator->generateSvg($this->payloads->payloadForQrCode($qrCode));
+        $content = $this->generator->generateSvg($this->payloads->payloadForQrCode($qrCode), 600, QRDesignSettings::fromQrCode($qrCode));
 
         $this->sendDownload($content, $this->filename($qrCode, 'svg'), 'image/svg+xml');
     }

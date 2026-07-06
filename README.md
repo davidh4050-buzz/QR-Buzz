@@ -1,14 +1,14 @@
 # QR Buzz
 
-QR Buzz is an open-core WordPress plugin for QR code management, campaigns, smart destinations, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
+QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, campaigns, smart destinations, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
 
-v0.7.0 is the Campaigns & Smart Destinations release. QR Buzz now helps users organise QR codes around marketing activity and route dynamic QR scans with simple time-based rules.
+v0.8.0 is the Design & Identity release. QR Buzz now helps site owners make QR assets look consistent with their brand while preserving the dynamic tracking, campaign, analytics, and Smart Destination features introduced in earlier releases.
 
 ## Dynamic vs Static QR Codes
 
-Dynamic QR codes use a QR Buzz tracking URL, allowing analytics, editable destinations, campaigns, Smart Destinations, scheduling, expiry, and fallback URLs.
+Dynamic QR codes use a QR Buzz tracking URL, allowing analytics, editable destinations, campaigns, Smart Destinations, scheduling, expiry, fallback URLs, and branded downloads.
 
-Static QR codes encode the final information directly into the QR image and do not collect analytics.
+Static QR codes encode the final information directly into the QR image and do not collect analytics. Static QR assets can still use QR Buzz design settings, themes, logos, and downloads.
 
 Use Dynamic URL when you want tracking, editable destinations, Smart Destination rules, scheduling, expiry, fallback URLs, and scan analytics. Use Static QR types for payloads like WiFi, business cards, phone numbers, SMS messages, map locations, and plain text where the final information should be encoded directly.
 
@@ -31,19 +31,47 @@ If you download a GitHub Actions artifact, unzip that download first. The artifa
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
 
-## Features in v0.7.0
+## Features in v0.8.0
 
-- Campaign management with create, edit, archive/unarchive, safe delete, and analytics views
-- Campaign assignment for dynamic and static QR codes
-- QR list campaign column and campaign filter
-- Campaign analytics for QR totals, dynamic/static counts, scans, trends, top QR codes, recent activity, referrers, devices, and browsers
-- Smart Destination rules for dynamic QR codes
-- Time-based rule conditions: date range, day of week, and time of day
-- Rule priority, active/inactive status, and first-match-wins resolution
-- Destination simulator for testing current or future WordPress site times
-- Smart Destination history for rule create, update, delete, activate, and deactivate events
-- Insights 2.0 with deterministic QR and campaign recommendations
-- Legacy scheduled destinations are migrated into Smart Destination rules while legacy fields remain for compatibility
+- QR Studio design experience for editing a single QR asset
+- Branded QR design controls for foreground colour, background colour, transparent background, quiet zone, and error correction
+- Logo support using the WordPress Media Library, with attachment IDs stored instead of raw logo URLs
+- PNG downloads and Library thumbnails rendered through the same design-aware QR pipeline
+- SVG downloads continue to be supported when the bundled QR library supports them
+- QR themes: Classic, Modern, Rounded, Dark, Minimal, High Contrast, and Corporate
+- Brand Kit settings for brand name, default colours, default theme, default logo, and default error correction
+- New QR assets start with Brand Kit defaults
+- Existing QR assets can manually apply the Brand Kit without being changed during upgrade
+- Refreshable QR Studio preview powered by the same renderer as downloads
+- Redesigned dashboard with quick actions, key metrics, insights, recent activity, and system status
+- Navigation polish: Dashboard, Library, New QR, Analytics, Campaigns, and Settings
+- Improved empty states and microcopy across the admin UI
+- Database upgrade support for v0.7.0 QR assets with safe Classic design defaults
+
+## QR Design Notes
+
+QR Buzz uses the bundled `endroid/qr-code` library for local QR rendering. v0.8.0 supports reliable brand styling such as colours, transparent backgrounds, margin control, error correction, and logos.
+
+Advanced visual QR artwork, such as custom rounded modules, custom eye patterns, gradients, and complex designer module shapes, is intentionally not included in v0.8.0. The current focus is branded, readable QR codes that remain suitable for real-world printing and scanning.
+
+## Logo Recommendations
+
+- Use high error correction when adding a logo.
+- Keep logo size modest, usually 10% to 25% of the QR image width.
+- Test QR codes before printing or distributing them.
+- PNG logo embedding supports raster image formats. SVG QR output remains available, but logo embedding can vary by uploaded image format and scanner compatibility.
+
+## QR Types
+
+- Dynamic URL
+- Static URL
+- WiFi
+- Business Card
+- Email
+- Phone
+- SMS
+- Location
+- Text
 
 ## Smart Destinations
 
@@ -59,25 +87,13 @@ Resolver order:
 4. Legacy scheduled destination fallback, if present
 5. Primary destination URL
 
-v0.7.0 supports date ranges, days of the week, and time-of-day windows. Geo, device, referrer, language, A/B testing, and campaign automation rules are intentionally left for later releases.
+v0.7.0 introduced date ranges, days of the week, and time-of-day windows. Geo, device, referrer, language, A/B testing, and campaign automation rules are intentionally left for later releases.
 
 ## Campaigns
 
-Campaigns organise QR codes around marketing activity. A QR code can belong to zero or one campaign in v0.7.0. Campaign analytics are based on assigned dynamic QR codes because static QR codes do not use QR Buzz tracking.
+Campaigns organise QR codes around marketing activity. A QR code can belong to zero or one campaign. Campaign analytics are based on assigned dynamic QR codes because static QR codes do not use QR Buzz tracking.
 
 Campaigns can be active or archived. Campaigns can only be deleted when no QR codes are assigned to them.
-
-## QR Types
-
-- Dynamic URL
-- Static URL
-- WiFi
-- Business Card
-- Email
-- Phone
-- SMS
-- Location
-- Text
 
 ## Dynamic Destination Features
 
@@ -116,7 +132,7 @@ QR Buzz uses custom tables rather than a custom post type:
 - `wp_qrbuzz_campaigns`
 - `wp_qrbuzz_destination_rules`
 
-Existing QR codes are preserved during upgrade. Existing scheduled destination fields are copied into legacy-labelled Smart Destination rules, and the old fields are retained for compatibility.
+Existing QR codes are preserved during upgrade. Existing scheduled destination fields are copied into legacy-labelled Smart Destination rules, and the old fields are retained for compatibility. v0.8.0 adds design fields to existing QR assets using safe defaults without changing payloads, shortcodes, tracking URLs, scans, campaigns, or Smart Destination rules.
 
 ## Development
 
@@ -141,7 +157,7 @@ composer fix
 ## Release Process
 
 1. Merge the release branch into `main`.
-2. Tag the release, for example `v0.7.0`.
+2. Tag the release, for example `v0.8.0`.
 3. Push the tag to GitHub.
 4. The release workflow installs production dependencies and uploads `qr-buzz.zip` as a build artifact.
 
@@ -149,4 +165,4 @@ The workflow can also be run manually from the GitHub Actions tab.
 
 ## Roadmap
 
-Future releases will build on this foundation with CSV export, retention controls, deeper device/browser reporting, REST API endpoints, WooCommerce integration, live scan notifications, geo/device/referrer Smart Destination rules, campaign automation, and optional Pro features.
+Future releases will build on this foundation with CSV export, retention controls, deeper device/browser reporting, REST API endpoints, WooCommerce integration, live scan notifications, geo/device/referrer Smart Destination rules, campaign automation, advanced QR module styling, and optional Pro features.

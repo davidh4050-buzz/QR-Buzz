@@ -39,6 +39,14 @@ class Installer {
             static_payload longtext NULL,
             is_trackable tinyint(1) NOT NULL DEFAULT 1,
             campaign_id bigint(20) unsigned NULL,
+            theme varchar(32) NOT NULL DEFAULT 'classic',
+            foreground_color varchar(7) NOT NULL DEFAULT '#000000',
+            background_color varchar(7) NOT NULL DEFAULT '#ffffff',
+            transparent_background tinyint(1) NOT NULL DEFAULT 0,
+            error_correction varchar(1) NOT NULL DEFAULT 'H',
+            margin int(11) NOT NULL DEFAULT 12,
+            logo_attachment_id bigint(20) unsigned NULL,
+            logo_size int(11) NOT NULL DEFAULT 20,
             PRIMARY KEY  (id),
             UNIQUE KEY shortcode (shortcode),
             KEY active (active),
@@ -46,7 +54,8 @@ class Installer {
             KEY expires_at (expires_at),
             KEY type (type),
             KEY is_trackable (is_trackable),
-            KEY campaign_id (campaign_id)
+            KEY campaign_id (campaign_id),
+            KEY theme (theme)
         ) {$charsetCollate};";
 
         $scansSql = "CREATE TABLE {$scansTable} (
@@ -125,6 +134,7 @@ class Installer {
         self::backfillStatuses();
         self::backfillTypes();
         self::backfillCampaigns();
+        self::backfillDesignSettings();
         (new DestinationRuleRepository())->migrateLegacyScheduledDestinations();
     }
 
@@ -150,5 +160,18 @@ class Installer {
 
         $qrcodesTable = Schema::qrcodesTable();
         $wpdb->query("UPDATE {$qrcodesTable} SET campaign_id = NULL WHERE campaign_id = 0");
+    }
+
+    private static function backfillDesignSettings(): void {
+        global $wpdb;
+
+        $qrcodesTable = Schema::qrcodesTable();
+        $wpdb->query("UPDATE {$qrcodesTable} SET theme = 'classic' WHERE theme = '' OR theme IS NULL");
+        $wpdb->query("UPDATE {$qrcodesTable} SET foreground_color = '#000000' WHERE foreground_color = '' OR foreground_color IS NULL");
+        $wpdb->query("UPDATE {$qrcodesTable} SET background_color = '#ffffff' WHERE background_color = '' OR background_color IS NULL");
+        $wpdb->query("UPDATE {$qrcodesTable} SET error_correction = 'H' WHERE error_correction = '' OR error_correction IS NULL");
+        $wpdb->query("UPDATE {$qrcodesTable} SET margin = 12 WHERE margin IS NULL");
+        $wpdb->query("UPDATE {$qrcodesTable} SET logo_size = 20 WHERE logo_size IS NULL OR logo_size = 0");
+        $wpdb->query("UPDATE {$qrcodesTable} SET logo_attachment_id = NULL WHERE logo_attachment_id = 0");
     }
 }

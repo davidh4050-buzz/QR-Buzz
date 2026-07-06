@@ -10,6 +10,8 @@ on:
       - v0.4.0-analytics-dashboard
       - v0.5.0-dynamic-destinations
       - v0.6.0-qr-types-analytics
+      - v0.7.0-campaigns-smart-destinations
+      - v0.8.0-design-identity
     tags:
       - 'v*'
 
