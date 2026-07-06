@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0
+- Added QR Studio design experience for editing individual QR assets
+- Added QR design controls for foreground colour, background colour, transparent background, error correction, quiet zone, logo, and logo size
+- Added WordPress Media Library logo selection with attachment ID storage
+- Added QR themes: Classic, Modern, Rounded, Dark, Minimal, High Contrast, and Corporate
+- Added Brand Kit settings for brand name, default colours, default QR theme, default logo, and default error correction
+- Added manual Apply Brand Kit action for existing QR assets
+- Updated QR generation so previews, Library thumbnails, PNG downloads, and SVG downloads use the same design-aware rendering pipeline
+- Added refreshable QR Studio preview with AJAX rendering and error handling
+- Redesigned the dashboard with quick actions, key metrics, recent activity, QR insights, and system status
+- Renamed QR Codes navigation to Library and Create QR navigation to New QR
+- Improved empty states, microcopy, status styling, spacing, and WordPress-native admin polish
+- Added design schema fields with safe defaults for upgrades from v0.7.0
+- Updated plugin metadata for v0.8.0
+
 ## 0.7.0
 - Added Campaigns with create, edit, archive/unarchive, safe delete, and campaign analytics workflows
 - Added campaign assignment for dynamic and static QR codes
