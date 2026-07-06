@@ -40,7 +40,7 @@ class QRPreviewController {
         $type = $this->types->normalize(isset($_POST['type']) ? sanitize_key(wp_unslash($_POST['type'])) : ($existing ? $existing->type : 'dynamic_url'));
         $designFallback = $existing ? QRDesignSettings::fromQrCode($existing) : $this->brandKit->designDefaults();
         $design = QRDesignSettings::fromPost($_POST, $designFallback);
-        $payload = $existing && $type === $existing->type ? $this->payloads->payloadForQrCode($existing) : $this->previewPayload($type);
+        $payload = $existing && $type === 'dynamic_url' && $existing->type === 'dynamic_url' ? $this->payloads->payloadForQrCode($existing) : $this->previewPayload($type);
 
         if ($payload === '') {
             wp_send_json_error(['message' => __('Add QR content before refreshing the preview.', 'qr-buzz')], 400);
