@@ -136,7 +136,8 @@ class AdminPage {
         $selectedType = $isEditing ? $editing->type : $this->types->normalize(isset($_GET['type']) ? sanitize_key(wp_unslash($_GET['type'])) : 'dynamic_url');
         $payload = $isEditing ? $editing->payloadData : [];
         if ($isEditing && !$payload) { $payload = ['destination_url' => $editing->destinationUrl, 'url' => $editing->destinationUrl]; }
-        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=qr-buzz-create')) . '">';
+        $formAction = $isEditing ? admin_url('admin.php?page=qr-buzz-codes') : admin_url('admin.php?page=qr-buzz-create');
+        echo '<form method="post" action="' . esc_url($formAction) . '">';
         wp_nonce_field('qrbuzz_save_qr', 'qrbuzz_nonce');
         echo '<input type="hidden" name="qrbuzz_action" value="save" /><input type="hidden" name="qr_id" value="' . esc_attr($isEditing ? $editing->id : 0) . '" />';
         echo '<div class="qrbuzz-panel"><h3>QR Details</h3><table class="form-table"><tbody>';
@@ -146,11 +147,10 @@ class AdminPage {
         foreach ($this->types->all() as $key => $type) { echo '<option value="' . esc_attr($key) . '" ' . selected($selectedType, $key, false) . '>' . esc_html($type['label']) . '</option>'; }
         echo '</select></td></tr></tbody></table></div>';
         $this->renderTypeFields($selectedType, $payload, $editing);
-        if ($isEditing && $editing->isTrackable()) { $this->renderRedirectPreview($editing); }
         submit_button($isEditing ? 'Update QR Code' : 'Create QR Code');
         if ($isEditing) { echo '<p><a href="' . esc_url(admin_url('admin.php?page=qr-buzz-codes')) . '">Cancel edit</a></p>'; }
         echo '</form>';
-        if ($isEditing && $editing->isTrackable()) { $this->renderRules($editing); $this->renderHistory($editing); }
+        if ($isEditing && $editing->isTrackable()) { $this->renderRedirectPreview($editing); $this->renderRules($editing); $this->renderHistory($editing); }
     }
 
     private function renderTypeFields(string $selectedType, array $payload, ?QRCode $editing): void {
