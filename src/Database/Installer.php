@@ -14,14 +14,31 @@ class Installer {
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
         $charsetCollate = $wpdb->get_charset_collate();
+        $workspacesTable = Schema::workspacesTable();
         $qrcodesTable = Schema::qrcodesTable();
         $scansTable = Schema::scansTable();
         $historyTable = Schema::destinationHistoryTable();
         $campaignsTable = Schema::campaignsTable();
         $rulesTable = Schema::destinationRulesTable();
 
+        $workspacesSql = "CREATE TABLE {$workspacesTable} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            name varchar(191) NOT NULL,
+            slug varchar(191) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'active',
+            owner_user_id bigint(20) unsigned NULL,
+            plan_key varchar(32) NOT NULL DEFAULT 'free',
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY slug (slug),
+            KEY status (status),
+            KEY plan_key (plan_key)
+        ) {$charsetCollate};";
+
         $qrcodesSql = "CREATE TABLE {$qrcodesTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            workspace_id bigint(20) unsigned NULL,
             name varchar(191) NOT NULL,
             destination_url text NOT NULL,
             shortcode varchar(32) NOT NULL,
@@ -49,6 +66,7 @@ class Installer {
             logo_size int(11) NOT NULL DEFAULT 20,
             PRIMARY KEY  (id),
             UNIQUE KEY shortcode (shortcode),
+            KEY workspace_id (workspace_id),
             KEY active (active),
             KEY status (status),
             KEY expires_at (expires_at),
@@ -72,6 +90,7 @@ class Installer {
             PRIMARY KEY  (id),
             KEY qr_id (qr_id),
             KEY scanned_at (scanned_at),
+            KEY qr_scanned_at (qr_id, scanned_at),
             KEY scan_status (scan_status),
             KEY resolution_reason (resolution_reason)
         ) {$charsetCollate};";
@@ -92,6 +111,7 @@ class Installer {
 
         $campaignsSql = "CREATE TABLE {$campaignsTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            workspace_id bigint(20) unsigned NULL,
             name varchar(191) NOT NULL,
             slug varchar(191) NOT NULL,
             description text NULL,
@@ -99,12 +119,14 @@ class Installer {
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
-            UNIQUE KEY slug (slug),
+            KEY workspace_id (workspace_id),
+            KEY slug (slug),
             KEY status (status)
         ) {$charsetCollate};";
 
         $rulesSql = "CREATE TABLE {$rulesTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            workspace_id bigint(20) unsigned NULL,
             qr_id bigint(20) unsigned NOT NULL,
             name varchar(191) NOT NULL,
             priority int(11) NOT NULL DEFAULT 10,
@@ -119,6 +141,7 @@ class Installer {
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
+            KEY workspace_id (workspace_id),
             KEY qr_id (qr_id),
             KEY priority (priority),
             KEY status (status),
@@ -126,21 +149,40 @@ class Installer {
             KEY ends_at (ends_at)
         ) {$charsetCollate};";
 
+        dbDelta($workspacesSql);
         dbDelta($qrcodesSql);
         dbDelta($scansSql);
         dbDelta($historySql);
         dbDelta($campaignsSql);
         dbDelta($rulesSql);
+        $workspaceId = self::ensureDefaultWorkspace();
+        self::backfillWorkspaceIds($workspaceId);
         self::backfillStatuses();
         self::backfillTypes();
         self::backfillCampaigns();
         self::backfillDesignSettings();
         (new DestinationRuleRepository())->migrateLegacyScheduledDestinations();
+        self::backfillWorkspaceIds($workspaceId);
+    }
+
+    public static function ensureDefaultWorkspace(): int {
+        return (new WorkspaceRepository())->createDefault();
+    }
+
+    private static function backfillWorkspaceIds(int $workspaceId): void {
+        global $wpdb;
+        $workspaceId = absint($workspaceId);
+        if ($workspaceId <= 0) {
+            return;
+        }
+
+        $wpdb->query($wpdb->prepare('UPDATE ' . Schema::qrcodesTable() . ' SET workspace_id = %d WHERE workspace_id IS NULL OR workspace_id = 0', $workspaceId));
+        $wpdb->query($wpdb->prepare('UPDATE ' . Schema::campaignsTable() . ' SET workspace_id = %d WHERE workspace_id IS NULL OR workspace_id = 0', $workspaceId));
+        $wpdb->query($wpdb->prepare('UPDATE ' . Schema::destinationRulesTable() . ' SET workspace_id = %d WHERE workspace_id IS NULL OR workspace_id = 0', $workspaceId));
     }
 
     private static function backfillStatuses(): void {
         global $wpdb;
-
         $qrcodesTable = Schema::qrcodesTable();
         $wpdb->query("UPDATE {$qrcodesTable} SET status = 'active' WHERE status = '' OR status IS NULL");
         $wpdb->query("UPDATE {$qrcodesTable} SET status = 'paused' WHERE active = 0 AND status = 'active'");
@@ -148,7 +190,6 @@ class Installer {
 
     private static function backfillTypes(): void {
         global $wpdb;
-
         $qrcodesTable = Schema::qrcodesTable();
         $wpdb->query("UPDATE {$qrcodesTable} SET type = 'dynamic_url' WHERE type = '' OR type IS NULL");
         $wpdb->query("UPDATE {$qrcodesTable} SET is_trackable = 1 WHERE type = 'dynamic_url'");
@@ -157,14 +198,12 @@ class Installer {
 
     private static function backfillCampaigns(): void {
         global $wpdb;
-
         $qrcodesTable = Schema::qrcodesTable();
         $wpdb->query("UPDATE {$qrcodesTable} SET campaign_id = NULL WHERE campaign_id = 0");
     }
 
     private static function backfillDesignSettings(): void {
         global $wpdb;
-
         $qrcodesTable = Schema::qrcodesTable();
         $wpdb->query("UPDATE {$qrcodesTable} SET theme = 'classic' WHERE theme = '' OR theme IS NULL");
         $wpdb->query("UPDATE {$qrcodesTable} SET foreground_color = '#000000' WHERE foreground_color = '' OR foreground_color IS NULL");
