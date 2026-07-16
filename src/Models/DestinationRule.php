@@ -4,6 +4,7 @@ namespace QRBuzz\Models;
 class DestinationRule {
 
     public int $id;
+    public int $workspaceId;
     public int $qrId;
     public string $name;
     public int $priority;
@@ -21,6 +22,7 @@ class DestinationRule {
     public static function fromRow(object $row): self {
         $rule = new self();
         $rule->id = (int) $row->id;
+        $rule->workspaceId = isset($row->workspace_id) ? (int) $row->workspace_id : 0;
         $rule->qrId = (int) $row->qr_id;
         $rule->name = (string) $row->name;
         $rule->priority = (int) $row->priority;
@@ -34,37 +36,11 @@ class DestinationRule {
         $rule->timeEnd = self::nullableString($row->time_end ?? null);
         $rule->createdAt = (string) $row->created_at;
         $rule->updatedAt = (string) $row->updated_at;
-
         return $rule;
     }
 
-    public function isActive(): bool {
-        return $this->status === 'active';
-    }
-
-    public function dayNumbers(): array {
-        if (!$this->daysOfWeek) {
-            return [];
-        }
-
-        return array_values(array_filter(array_map('absint', explode(',', $this->daysOfWeek)), static fn(int $day): bool => $day >= 1 && $day <= 7));
-    }
-
-    private static function nullableString($value): ?string {
-        if ($value === null) {
-            return null;
-        }
-
-        $value = trim((string) $value);
-        return $value === '' ? null : $value;
-    }
-
-    private static function decodeConditions($value): array {
-        if (!$value) {
-            return [];
-        }
-
-        $decoded = json_decode((string) $value, true);
-        return is_array($decoded) ? $decoded : [];
-    }
+    public function isActive(): bool { return $this->status === 'active'; }
+    public function dayNumbers(): array { return $this->daysOfWeek ? array_values(array_filter(array_map('absint', explode(',', $this->daysOfWeek)), static fn(int $day): bool => $day >= 1 && $day <= 7)) : []; }
+    private static function nullableString($value): ?string { if ($value === null) { return null; } $value = trim((string) $value); return $value === '' ? null : $value; }
+    private static function decodeConditions($value): array { if (!$value) { return []; } $decoded = json_decode((string) $value, true); return is_array($decoded) ? $decoded : []; }
 }
