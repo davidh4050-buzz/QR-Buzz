@@ -20,7 +20,7 @@ class PlatformPage {
 
     public function init(): void {
         add_action('admin_init', [$this, 'handleRequest'], 1);
-        add_action('admin_menu', [$this, 'menu']);
+        add_action('admin_menu', [$this, 'menu'], 20);
         add_action('admin_enqueue_scripts', [$this, 'assets']);
     }
 
