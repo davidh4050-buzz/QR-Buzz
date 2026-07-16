@@ -33,6 +33,9 @@ jobs:
       - name: Install production dependencies
         run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 
+      - name: Lint PHP syntax
+        run: find . -path './vendor' -prune -o -path './build' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+
       - name: Prune development files from vendor packages
         run: |
           find vendor -type d \( -iname test -o -iname tests -o -iname docs -o -iname doc -o -iname examples -o -iname example \) -prune -exec rm -rf {} +
