@@ -33,7 +33,7 @@ class PlatformPage {
         if (!in_array($hook, ['qr-buzz_page_qr-buzz-platform', 'qr-buzz_page_qr-buzz-diagnostics'], true)) { return; }
         wp_register_style('qrbuzz-platform', false, [], QR_BUZZ_VERSION);
         wp_enqueue_style('qrbuzz-platform');
-        wp_add_inline_style('qrbuzz-platform', '.qrbuzz-dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0}.qrbuzz-card,.qrbuzz-panel{background:#fff;border:1px solid #c3c4c7;border-radius:4px;padding:14px}.qrbuzz-card strong{display:block;font-size:22px}.qrbuzz-badge{display:inline-block;border-radius:999px;background:#f0f0f1;padding:2px 8px}.qrbuzz-unavailable{color:#8a2424}.qrbuzz-copy-area{width:100%;min-height:220px;font-family:monospace}');
+        wp_add_inline_style('qrbuzz-platform', '.qrbuzz-dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0}.qrbuzz-card,.qrbuzz-panel{background:#fff;border:1px solid #c3c4c7;border-radius:4px;padding:14px}.qrbuzz-card strong{display:block;font-size:22px}.qrbuzz-badge{display:inline-block;border-radius:999px;background:#f0f0f1;padding:2px 8px}.qrbuzz-unavailable{color:#8a2424}.qrbuzz-copy-area{width:100%;min-height:220px;font-family:monospace}.qrbuzz-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}');
     }
 
     public function handleRequest(): void {
@@ -66,7 +66,9 @@ class PlatformPage {
         echo '</form></div>';
         echo '<div class="qrbuzz-dashboard">';
         foreach ($summary['usage'] as $resource => $used) { if ($used === null) { continue; } $limit = $summary['limits'][$resource]; echo '<div class="qrbuzz-card"><span>' . esc_html(ucwords(str_replace('_', ' ', $resource))) . '</span><strong>' . esc_html((string) $used) . '</strong><p>Limit: ' . esc_html($limit === null ? 'Unlimited' : (string) $limit) . '</p></div>'; }
-        echo '</div><div class="qrbuzz-panel"><h2>Features</h2><table class="widefat striped"><thead><tr><th>Feature</th><th>Status</th></tr></thead><tbody>';
+        echo '</div>';
+        $this->renderExports();
+        echo '<div class="qrbuzz-panel"><h2>Features</h2><table class="widefat striped"><thead><tr><th>Feature</th><th>Status</th></tr></thead><tbody>';
         foreach ($summary['features'] as $feature => $enabled) { echo '<tr><td>' . esc_html(ucwords(str_replace('_', ' ', $feature))) . '</td><td>' . ($enabled ? 'Available' : '<span class="qrbuzz-unavailable">Unavailable on this plan</span>') . '</td></tr>'; }
         echo '</tbody></table></div></div>';
     }
@@ -92,6 +94,18 @@ class PlatformPage {
         echo '<div class="wrap"><h1>System Diagnostics</h1><p>This excludes secrets, tokens, raw IP addresses, and personal scan data.</p><table class="widefat striped"><tbody>';
         foreach ($data as $label => $value) { echo '<tr><th>' . esc_html($label) . '</th><td>' . esc_html((string) $value) . '</td></tr>'; }
         echo '</tbody></table><h2>Copy diagnostics</h2><textarea class="qrbuzz-copy-area" readonly>' . esc_textarea(wp_json_encode($data, JSON_PRETTY_PRINT)) . '</textarea></div>';
+    }
+
+    private function renderExports(): void {
+        echo '<div class="qrbuzz-panel"><h2>Exports</h2>';
+        if ($this->entitlements->allows('csv_export')) {
+            $assetsUrl = wp_nonce_url(admin_url('admin-post.php?action=qrbuzz_export_assets'), 'qrbuzz_export_assets');
+            $campaignsUrl = wp_nonce_url(admin_url('admin-post.php?action=qrbuzz_export_campaigns'), 'qrbuzz_export_campaigns');
+            echo '<p>Download workspace-scoped CSV exports for reporting or backups.</p><div class="qrbuzz-actions"><a class="button" href="' . esc_url($assetsUrl) . '">Export QR assets CSV</a><a class="button" href="' . esc_url($campaignsUrl) . '">Export campaigns CSV</a></div>';
+        } else {
+            echo '<p><span class="qrbuzz-unavailable">CSV exports are unavailable on the current plan.</span></p>';
+        }
+        echo '</div>';
     }
 
     private function enforceAdminLimits(): void {
