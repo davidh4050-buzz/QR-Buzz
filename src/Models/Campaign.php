@@ -4,6 +4,7 @@ namespace QRBuzz\Models;
 class Campaign {
 
     public int $id;
+    public int $workspaceId;
     public string $name;
     public string $slug;
     public string $description;
@@ -18,6 +19,7 @@ class Campaign {
     public static function fromRow(object $row): self {
         $campaign = new self();
         $campaign->id = (int) $row->id;
+        $campaign->workspaceId = isset($row->workspace_id) ? (int) $row->workspace_id : 0;
         $campaign->name = (string) $row->name;
         $campaign->slug = (string) $row->slug;
         $campaign->description = (string) ($row->description ?? '');
@@ -28,7 +30,6 @@ class Campaign {
         $campaign->dynamicCount = isset($row->dynamic_count) ? (int) $row->dynamic_count : 0;
         $campaign->staticCount = isset($row->static_count) ? (int) $row->static_count : 0;
         $campaign->scanCount = isset($row->scan_count) ? (int) $row->scan_count : 0;
-
         return $campaign;
     }
 }
