@@ -2,125 +2,84 @@
 namespace QRBuzz\Database;
 
 use QRBuzz\Models\DestinationRule;
+use QRBuzz\Workspace\WorkspaceService;
 
 class DestinationRuleRepository {
+
+    private WorkspaceService $workspaces;
+
+    public function __construct(?WorkspaceService $workspaces = null) {
+        $this->workspaces = $workspaces ?: new WorkspaceService();
+    }
 
     /** @return DestinationRule[] */
     public function forQrCode(int $qrId, bool $activeOnly = false): array {
         global $wpdb;
-
-        $where = 'WHERE qr_id = %d';
-        $params = [$qrId];
-
-        if ($activeOnly) {
-            $where .= " AND status = 'active'";
-        }
-
+        $where = 'WHERE qr_id = %d AND workspace_id = %d';
+        $params = [$qrId, $this->workspaceId()];
+        if ($activeOnly) { $where .= " AND status = 'active'"; }
         $rows = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . Schema::destinationRulesTable() . " {$where} ORDER BY priority ASC, id ASC", ...$params)) ?: [];
-
         return array_map([DestinationRule::class, 'fromRow'], $rows);
     }
 
     public function find(int $id): ?DestinationRule {
         global $wpdb;
-
-        $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . Schema::destinationRulesTable() . ' WHERE id = %d LIMIT 1', $id));
-
+        $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . Schema::destinationRulesTable() . ' WHERE id = %d AND workspace_id = %d LIMIT 1', $id, $this->workspaceId()));
         return $row ? DestinationRule::fromRow($row) : null;
     }
 
     public function create(int $qrId, array $data, int $userId = 0): int {
         global $wpdb;
-
         $now = current_time('mysql');
         $row = $this->row($qrId, $data, $now, $now);
-        $wpdb->insert(Schema::destinationRulesTable(), $row, ['%d','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s']);
+        $wpdb->insert(Schema::destinationRulesTable(), $row, ['%d','%d','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s']);
         $id = (int) $wpdb->insert_id;
         $this->recordHistory($qrId, 'rule_created', '', $row['name'], $userId);
-
         return $id;
     }
 
     public function update(int $id, array $data, int $userId = 0): bool {
         global $wpdb;
-
         $before = $this->find($id);
-        if (!$before) {
-            return false;
-        }
-
+        if (!$before) { return false; }
         $row = $this->row($before->qrId, $data, $before->createdAt, current_time('mysql'));
-        unset($row['qr_id'], $row['created_at']);
-        $result = $wpdb->update(Schema::destinationRulesTable(), $row, ['id' => $id], ['%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s'], ['%d']);
-
-        if ($result === false) {
-            return false;
-        }
-
+        unset($row['workspace_id'], $row['qr_id'], $row['created_at']);
+        $result = $wpdb->update(Schema::destinationRulesTable(), $row, ['id' => $id, 'workspace_id' => $this->workspaceId()], ['%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s'], ['%d', '%d']);
+        if ($result === false) { return false; }
         $this->recordHistory($before->qrId, 'rule_updated', $before->name, $row['name'], $userId);
         return true;
     }
 
     public function delete(int $id, int $userId = 0): bool {
         global $wpdb;
-
         $rule = $this->find($id);
-        if (!$rule) {
-            return false;
-        }
-
-        $result = $wpdb->delete(Schema::destinationRulesTable(), ['id' => $id], ['%d']);
-        if ($result === false) {
-            return false;
-        }
-
+        if (!$rule) { return false; }
+        $result = $wpdb->delete(Schema::destinationRulesTable(), ['id' => $id, 'workspace_id' => $this->workspaceId()], ['%d', '%d']);
+        if ($result === false) { return false; }
         $this->recordHistory($rule->qrId, 'rule_deleted', $rule->name, '', $userId);
         return true;
     }
 
     public function setStatus(int $id, string $status, int $userId = 0): bool {
         global $wpdb;
-
         $rule = $this->find($id);
-        if (!$rule) {
-            return false;
-        }
-
+        if (!$rule) { return false; }
         $status = $status === 'inactive' ? 'inactive' : 'active';
-        $result = $wpdb->update(Schema::destinationRulesTable(), ['status' => $status, 'updated_at' => current_time('mysql')], ['id' => $id], ['%s', '%s'], ['%d']);
-        if ($result === false) {
-            return false;
-        }
-
+        $result = $wpdb->update(Schema::destinationRulesTable(), ['status' => $status, 'updated_at' => current_time('mysql')], ['id' => $id, 'workspace_id' => $this->workspaceId()], ['%s', '%s'], ['%d', '%d']);
+        if ($result === false) { return false; }
         $this->recordHistory($rule->qrId, $status === 'active' ? 'rule_activated' : 'rule_deactivated', $rule->status, $status, $userId);
         return true;
     }
 
     public function migrateLegacyScheduledDestinations(): void {
         global $wpdb;
-
         $qrcodesTable = Schema::qrcodesTable();
         $rulesTable = Schema::destinationRulesTable();
-        $rows = $wpdb->get_results("SELECT id, scheduled_url, scheduled_start_at, scheduled_end_at FROM {$qrcodesTable} WHERE is_trackable = 1 AND scheduled_url IS NOT NULL AND scheduled_url != '' AND scheduled_start_at IS NOT NULL AND scheduled_end_at IS NOT NULL") ?: [];
-
+        $rows = $wpdb->get_results("SELECT id, workspace_id, scheduled_url, scheduled_start_at, scheduled_end_at FROM {$qrcodesTable} WHERE is_trackable = 1 AND scheduled_url IS NOT NULL AND scheduled_url != '' AND scheduled_start_at IS NOT NULL AND scheduled_end_at IS NOT NULL") ?: [];
         foreach ($rows as $row) {
             $exists = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$rulesTable} WHERE qr_id = %d AND conditions_json LIKE %s", (int) $row->id, '%legacy_scheduled%'));
-            if ($exists > 0) {
-                continue;
-            }
-
-            $this->create((int) $row->id, [
-                'name' => 'Scheduled destination',
-                'priority' => 10,
-                'status' => 'active',
-                'destination_url' => (string) $row->scheduled_url,
-                'starts_at' => (string) $row->scheduled_start_at,
-                'ends_at' => (string) $row->scheduled_end_at,
-                'days_of_week' => '',
-                'time_start' => '',
-                'time_end' => '',
-                'conditions' => ['legacy_scheduled' => true],
-            ]);
+            if ($exists > 0) { continue; }
+            $this->create((int) $row->id, ['workspace_id' => (int) $row->workspace_id, 'name' => 'Scheduled destination', 'priority' => 10, 'status' => 'active', 'destination_url' => (string) $row->scheduled_url, 'starts_at' => (string) $row->scheduled_start_at, 'ends_at' => (string) $row->scheduled_end_at, 'days_of_week' => '', 'time_start' => '', 'time_end' => '', 'conditions' => ['legacy_scheduled' => true]]);
         }
     }
 
@@ -130,37 +89,11 @@ class DestinationRuleRepository {
         $conditions['date_range'] = !empty($data['starts_at']) || !empty($data['ends_at']);
         $conditions['days_of_week'] = $days !== '';
         $conditions['time_of_day'] = !empty($data['time_start']) || !empty($data['time_end']);
-
-        return [
-            'qr_id' => $qrId,
-            'name' => sanitize_text_field((string) ($data['name'] ?? 'Smart destination')),
-            'priority' => max(1, absint($data['priority'] ?? 10)),
-            'status' => ($data['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active',
-            'destination_url' => esc_url_raw((string) ($data['destination_url'] ?? '')),
-            'conditions_json' => wp_json_encode($conditions),
-            'starts_at' => $this->nullableString($data['starts_at'] ?? null),
-            'ends_at' => $this->nullableString($data['ends_at'] ?? null),
-            'days_of_week' => $days === '' ? null : $days,
-            'time_start' => $this->nullableTime($data['time_start'] ?? null),
-            'time_end' => $this->nullableTime($data['time_end'] ?? null),
-            'created_at' => $createdAt,
-            'updated_at' => $updatedAt,
-        ];
+        return ['workspace_id' => absint($data['workspace_id'] ?? $this->workspaceId()), 'qr_id' => $qrId, 'name' => sanitize_text_field((string) ($data['name'] ?? 'Smart destination')), 'priority' => max(1, absint($data['priority'] ?? 10)), 'status' => ($data['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active', 'destination_url' => esc_url_raw((string) ($data['destination_url'] ?? '')), 'conditions_json' => wp_json_encode($conditions), 'starts_at' => $this->nullableString($data['starts_at'] ?? null), 'ends_at' => $this->nullableString($data['ends_at'] ?? null), 'days_of_week' => $days === '' ? null : $days, 'time_start' => $this->nullableTime($data['time_start'] ?? null), 'time_end' => $this->nullableTime($data['time_end'] ?? null), 'created_at' => $createdAt, 'updated_at' => $updatedAt];
     }
 
-    private function recordHistory(int $qrId, string $changeType, $previous, $new, int $userId): void {
-        global $wpdb;
-
-        $wpdb->insert(Schema::destinationHistoryTable(), ['qr_id' => $qrId, 'change_type' => $changeType, 'previous_value' => $previous === null ? null : (string) $previous, 'new_value' => $new === null ? null : (string) $new, 'changed_by' => $userId > 0 ? $userId : null, 'changed_at' => current_time('mysql')], ['%d', '%s', '%s', '%s', '%d', '%s']);
-    }
-
-    private function nullableString($value): ?string {
-        $value = trim((string) $value);
-        return $value === '' ? null : $value;
-    }
-
-    private function nullableTime($value): ?string {
-        $value = trim((string) $value);
-        return preg_match('/^([01][0-9]|2[0-3]):[0-5][0-9]$/', $value) ? $value : null;
-    }
+    private function recordHistory(int $qrId, string $changeType, $previous, $new, int $userId): void { global $wpdb; $wpdb->insert(Schema::destinationHistoryTable(), ['qr_id' => $qrId, 'change_type' => $changeType, 'previous_value' => $previous === null ? null : (string) $previous, 'new_value' => $new === null ? null : (string) $new, 'changed_by' => $userId > 0 ? $userId : null, 'changed_at' => current_time('mysql')], ['%d', '%s', '%s', '%s', '%d', '%s']); }
+    private function nullableString($value): ?string { $value = trim((string) $value); return $value === '' ? null : $value; }
+    private function nullableTime($value): ?string { $value = trim((string) $value); return preg_match('/^([01][0-9]|2[0-3]):[0-5][0-9]$/', $value) ? $value : null; }
+    private function workspaceId(): int { return $this->workspaces->id(); }
 }
