@@ -84,7 +84,67 @@ class PlanGuard {
     }
 
     private function script(): string {
-        return "document.addEventListener('DOMContentLoaded',function(){var locks=window.QRBuzzPlanLocks||{};function note(text){var p=document.createElement('p');p.className='qrbuzz-plan-lock-note';p.textContent=text;return p;}function panelByHeading(text){var headings=document.querySelectorAll('.qrbuzz-panel h2,.qrbuzz-panel h3,.qrbuzz-panel h4');for(var i=0;i<headings.length;i++){if(headings[i].textContent.trim()===text){return headings[i].closest('.qrbuzz-panel');}}return null;}function rowByInput(name){var field=document.querySelector('[name="'+name+'"]');return field?field.closest('tr,p,fieldset'):null;}function lockPanel(panel,message){if(!panel){return;}panel.classList.add('qrbuzz-plan-locked');if(!panel.querySelector('.qrbuzz-plan-lock-note')){panel.insertBefore(note(message),panel.children[1]||null);}}function hideRow(name){var row=rowByInput(name);if(row){row.classList.add('qrbuzz-plan-hidden');}}if(locks.advancedBranding){lockPanel(panelByHeading('Design'),'Advanced branding is not available on the current plan. QR codes will use the Classic design.');}if(locks.logoEmbedding){hideRow('logo_attachment_id');hideRow('default_logo_attachment_id');var logoSize=rowByInput('logo_size');if(logoSize){logoSize.classList.add('qrbuzz-plan-hidden');}}if(locks.smartDestinations){['scheduled_url','scheduled_start_at','scheduled_end_at','expires_at','fallback_url'].forEach(hideRow);lockPanel(panelByHeading('Smart Destinations'),'Smart Destinations are not available on the current plan.');var ruleForm=document.querySelector('[name=qrbuzz_action][value=save_rule]');if(ruleForm){var form=ruleForm.closest('form');if(form){form.classList.add('qrbuzz-plan-hidden');}}}});";
+        return <<<'JS'
+document.addEventListener('DOMContentLoaded', function() {
+    var locks = window.QRBuzzPlanLocks || {};
+
+    function note(text) {
+        var p = document.createElement('p');
+        p.className = 'qrbuzz-plan-lock-note';
+        p.textContent = text;
+        return p;
+    }
+
+    function panelByHeading(text) {
+        var headings = document.querySelectorAll('.qrbuzz-panel h2,.qrbuzz-panel h3,.qrbuzz-panel h4');
+        for (var i = 0; i < headings.length; i++) {
+            if (headings[i].textContent.trim() === text) {
+                return headings[i].closest('.qrbuzz-panel');
+            }
+        }
+        return null;
+    }
+
+    function rowByInput(name) {
+        var field = document.querySelector('[name="' + name + '"]');
+        return field ? field.closest('tr,p,fieldset') : null;
+    }
+
+    function lockPanel(panel, message) {
+        if (!panel) { return; }
+        panel.classList.add('qrbuzz-plan-locked');
+        if (!panel.querySelector('.qrbuzz-plan-lock-note')) {
+            panel.insertBefore(note(message), panel.children[1] || null);
+        }
+    }
+
+    function hideRow(name) {
+        var row = rowByInput(name);
+        if (row) { row.classList.add('qrbuzz-plan-hidden'); }
+    }
+
+    if (locks.advancedBranding) {
+        lockPanel(panelByHeading('Design'), 'Advanced branding is not available on the current plan. QR codes will use the Classic design.');
+    }
+
+    if (locks.logoEmbedding) {
+        hideRow('logo_attachment_id');
+        hideRow('default_logo_attachment_id');
+        var logoSize = rowByInput('logo_size');
+        if (logoSize) { logoSize.classList.add('qrbuzz-plan-hidden'); }
+    }
+
+    if (locks.smartDestinations) {
+        ['scheduled_url', 'scheduled_start_at', 'scheduled_end_at', 'expires_at', 'fallback_url'].forEach(hideRow);
+        lockPanel(panelByHeading('Smart Destinations'), 'Smart Destinations are not available on the current plan.');
+        var ruleFormAction = document.querySelector('[name="qrbuzz_action"][value="save_rule"]');
+        if (ruleFormAction) {
+            var form = ruleFormAction.closest('form');
+            if (form) { form.classList.add('qrbuzz-plan-hidden'); }
+        }
+    }
+});
+JS;
     }
 
     private function isQrBuzzPage(): bool {
