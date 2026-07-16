@@ -6,6 +6,7 @@ use QRBuzz\Admin\AnalyticsPage;
 use QRBuzz\Admin\CampaignsPage;
 use QRBuzz\Admin\DownloadController;
 use QRBuzz\Admin\ExportController;
+use QRBuzz\Admin\PlanGuard;
 use QRBuzz\Admin\PlatformPage;
 use QRBuzz\Admin\QRPreviewController;
 use QRBuzz\Core\Requirements;
@@ -30,6 +31,7 @@ class Plugin {
 
         if (is_admin()) {
             (new PlatformPage())->init();
+            (new PlanGuard())->init();
             (new DownloadController($this->repository))->init();
             (new ExportController($this->repository))->init();
             (new QRPreviewController($this->repository))->init();
