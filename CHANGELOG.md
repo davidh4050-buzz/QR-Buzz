@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.0
+- Added default workspace ownership foundation with `qrbuzz_workspaces` and workspace-scoped QR, campaign, rule, brand kit, and analytics queries
+- Added local Free, Pro, and Business plan registry for development/testing without billing or external subscription services
+- Added entitlement and usage services for feature availability, QR asset limits, dynamic QR limits, campaign limits, Smart Destination rule limits, CSV export access, API access, branding, and logo embedding
+- Added Workspace & Plan admin area with local plan switching, usage cards, feature availability, and CSV export actions
+- Added Diagnostics admin area with version, schema, renderer, SVG, REST, database, PHP, WordPress, workspace, and plan information while excluding secrets and raw scan data
+- Added workspace-scoped CSV exports for QR assets and campaigns with capability checks, nonce validation, and spreadsheet formula-injection protection
+- Added internal REST API namespace `qr-buzz/v1` for workspace, entitlements, usage, assets, campaigns, analytics summaries, per-QR analytics, campaign analytics, and brand kit data
+- Added workspace-aware Brand Kit storage while preserving fallback to legacy v0.8 settings
+- Added database upgrade/backfill routines for existing v0.8 QR assets, campaigns, destination rules, and legacy scheduled-destination migrations
+- Added supporting architecture, database, membership, and REST API documentation
+- Updated plugin metadata for v0.9.0
+
 ## 0.8.0
 - Added QR Studio design experience for editing individual QR assets
 - Added QR design controls for foreground colour, background colour, transparent background, error correction, quiet zone, logo, and logo size

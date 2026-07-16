@@ -2,7 +2,7 @@
 
 QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, campaigns, smart destinations, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
 
-v0.8.0 is the Design & Identity release. QR Buzz now helps site owners make QR assets look consistent with their brand while preserving the dynamic tracking, campaign, analytics, and Smart Destination features introduced in earlier releases.
+v0.9.0 is the Platform Foundations release. QR Buzz now has a default workspace model, local plan/entitlement architecture, workspace-scoped data access, internal REST API endpoints, CSV exports, and diagnostics. This release does not add billing, public registration, subscriptions, or external licensing.
 
 ## Dynamic vs Static QR Codes
 
@@ -31,28 +31,49 @@ If you download a GitHub Actions artifact, unzip that download first. The artifa
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
 
-## Features in v0.8.0
+## Features in v0.9.0
 
-- QR Studio design experience for editing a single QR asset
-- Branded QR design controls for foreground colour, background colour, transparent background, quiet zone, and error correction
-- Logo support using the WordPress Media Library, with attachment IDs stored instead of raw logo URLs
-- PNG downloads and Library thumbnails rendered through the same design-aware QR pipeline
-- SVG downloads continue to be supported when the bundled QR library supports them
-- QR themes: Classic, Modern, Rounded, Dark, Minimal, High Contrast, and Corporate
-- Brand Kit settings for brand name, default colours, default theme, default logo, and default error correction
-- New QR assets start with Brand Kit defaults
-- Existing QR assets can manually apply the Brand Kit without being changed during upgrade
-- Refreshable QR Studio preview powered by the same renderer as downloads
-- Redesigned dashboard with quick actions, key metrics, insights, recent activity, and system status
-- Navigation polish: Dashboard, Library, New QR, Analytics, Campaigns, and Settings
-- Improved empty states and microcopy across the admin UI
-- Database upgrade support for v0.7.0 QR assets with safe Classic design defaults
+- Default workspace ownership foundation for QR assets, campaigns, Smart Destination rules, Brand Kit settings, and analytics queries
+- Workspace-scoped database upgrade/backfill for existing v0.8.0 installs
+- Local Free, Pro, and Business plan registry for development and testing
+- Entitlement and usage services for plan features and limits
+- Workspace & Plan admin area with local plan switching, usage cards, feature availability, and export actions
+- Diagnostics admin area for support-friendly system information without secrets, tokens, raw IP addresses, or personal scan data
+- CSV exports for QR assets and campaigns on entitled plans
+- Internal REST API namespace: `qr-buzz/v1`
+- REST endpoints for workspace metadata, entitlements, usage, assets, campaigns, analytics, per-QR analytics, campaign analytics, and Brand Kit data
+- Workspace-aware Brand Kit options with fallback to existing v0.8 settings
+- Release workflow support for the v0.9 branch
+
+## Plan Notes
+
+v0.9.0 introduces plan architecture only. Plans are assigned locally from **QR Buzz -> Workspace & Plan** so the feature set can be tested before real subscriptions are added later.
+
+The default Free plan is intentionally limited. Logo embedding, advanced branding, Smart Destination rules, CSV export, and API access are available on higher local plans. Existing data is preserved during upgrade, but some editing actions may be blocked until the workspace is switched to a plan that includes the relevant capability.
+
+## REST API
+
+The internal API is registered under `qr-buzz/v1`. All endpoints require an authenticated WordPress administrator. Asset, campaign, and analytics endpoints also require the `api_access` entitlement.
+
+Useful endpoints include:
+
+- `/wp-json/qr-buzz/v1/workspace`
+- `/wp-json/qr-buzz/v1/workspace/entitlements`
+- `/wp-json/qr-buzz/v1/workspace/usage`
+- `/wp-json/qr-buzz/v1/assets`
+- `/wp-json/qr-buzz/v1/assets/{id}/analytics`
+- `/wp-json/qr-buzz/v1/campaigns`
+- `/wp-json/qr-buzz/v1/campaigns/{id}/analytics`
+- `/wp-json/qr-buzz/v1/analytics/summary`
+- `/wp-json/qr-buzz/v1/brand-kit`
+
+See `docs/rest-api.md` for more detail.
 
 ## QR Design Notes
 
-QR Buzz uses the bundled `endroid/qr-code` library for local QR rendering. v0.8.0 supports reliable brand styling such as colours, transparent backgrounds, margin control, error correction, and logos.
+QR Buzz uses the bundled `endroid/qr-code` library for local QR rendering. QR Buzz supports reliable brand styling such as colours, transparent backgrounds, margin control, error correction, and logos.
 
-Advanced visual QR artwork, such as custom rounded modules, custom eye patterns, gradients, and complex designer module shapes, is intentionally not included in v0.8.0. The current focus is branded, readable QR codes that remain suitable for real-world printing and scanning.
+Advanced visual QR artwork, such as custom rounded modules, custom eye patterns, gradients, and complex designer module shapes, is intentionally not included yet. The current focus is branded, readable QR codes that remain suitable for real-world printing and scanning.
 
 ## Logo Recommendations
 
@@ -126,13 +147,14 @@ Campaigns can be active or archived. Campaigns can only be deleted when no QR co
 
 QR Buzz uses custom tables rather than a custom post type:
 
+- `wp_qrbuzz_workspaces`
 - `wp_qrbuzz_qrcodes`
 - `wp_qrbuzz_scans`
 - `wp_qrbuzz_destination_history`
 - `wp_qrbuzz_campaigns`
 - `wp_qrbuzz_destination_rules`
 
-Existing QR codes are preserved during upgrade. Existing scheduled destination fields are copied into legacy-labelled Smart Destination rules, and the old fields are retained for compatibility. v0.8.0 adds design fields to existing QR assets using safe defaults without changing payloads, shortcodes, tracking URLs, scans, campaigns, or Smart Destination rules.
+Existing QR codes are preserved during upgrade. Existing scheduled destination fields are copied into legacy-labelled Smart Destination rules, and the old fields are retained for compatibility. v0.8 design fields and v0.9 workspace fields are backfilled safely without changing payloads, shortcodes, tracking URLs, scans, campaigns, or Smart Destination rules.
 
 ## Development
 
@@ -157,7 +179,7 @@ composer fix
 ## Release Process
 
 1. Merge the release branch into `main`.
-2. Tag the release, for example `v0.8.0`.
+2. Tag the release, for example `v0.9.0`.
 3. Push the tag to GitHub.
 4. The release workflow installs production dependencies and uploads `qr-buzz.zip` as a build artifact.
 
@@ -165,4 +187,4 @@ The workflow can also be run manually from the GitHub Actions tab.
 
 ## Roadmap
 
-Future releases will build on this foundation with CSV export, retention controls, deeper device/browser reporting, REST API endpoints, WooCommerce integration, live scan notifications, geo/device/referrer Smart Destination rules, campaign automation, advanced QR module styling, and optional Pro features.
+Future releases will build on this foundation with public account/workspace management, real subscription billing, API keys, retention controls, deeper device/browser reporting, WooCommerce integration, live scan notifications, geo/device/referrer Smart Destination rules, campaign automation, advanced QR module styling, and optional Pro features.

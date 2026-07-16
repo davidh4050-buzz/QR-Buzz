@@ -6,6 +6,7 @@ use QRBuzz\Utils\DateTimeHelper;
 class QRCode {
 
     public int $id;
+    public int $workspaceId;
     public string $name;
     public string $destinationUrl;
     public string $shortcode;
@@ -38,6 +39,7 @@ class QRCode {
     public static function fromRow(object $row): self {
         $qrCode = new self();
         $qrCode->id = (int) $row->id;
+        $qrCode->workspaceId = isset($row->workspace_id) ? (int) $row->workspace_id : 0;
         $qrCode->name = (string) $row->name;
         $qrCode->destinationUrl = (string) $row->destination_url;
         $qrCode->shortcode = (string) $row->shortcode;
@@ -66,43 +68,13 @@ class QRCode {
         $qrCode->logoSize = isset($row->logo_size) ? (int) $row->logo_size : 20;
         $qrCode->scanCount = isset($row->scan_count) ? (int) $row->scan_count : 0;
         $qrCode->lastScan = isset($row->last_scan) && $row->last_scan !== null ? (string) $row->last_scan : null;
-
         return $qrCode;
     }
 
-    public function effectiveStatus(?int $timestamp = null): string {
-        return $this->isExpired($timestamp) ? 'expired' : $this->status;
-    }
+    public function effectiveStatus(?int $timestamp = null): string { return $this->isExpired($timestamp) ? 'expired' : $this->status; }
+    public function isExpired(?int $timestamp = null): bool { $expiresTimestamp = DateTimeHelper::utcTimestamp($this->expiresAt); return $expiresTimestamp ? $expiresTimestamp <= ($timestamp ?: current_time('timestamp', true)) : false; }
+    public function isTrackable(): bool { return $this->isTrackable && $this->type === 'dynamic_url'; }
 
-    public function isExpired(?int $timestamp = null): bool {
-        $expiresTimestamp = DateTimeHelper::utcTimestamp($this->expiresAt);
-
-        if (!$expiresTimestamp) {
-            return false;
-        }
-
-        return $expiresTimestamp <= ($timestamp ?: current_time('timestamp', true));
-    }
-
-    public function isTrackable(): bool {
-        return $this->isTrackable && $this->type === 'dynamic_url';
-    }
-
-    private static function nullableString($value): ?string {
-        if ($value === null) {
-            return null;
-        }
-
-        $value = trim((string) $value);
-        return $value === '' ? null : $value;
-    }
-
-    private static function decodePayloadData($value): array {
-        if (!$value) {
-            return [];
-        }
-
-        $decoded = json_decode((string) $value, true);
-        return is_array($decoded) ? $decoded : [];
-    }
+    private static function nullableString($value): ?string { if ($value === null) { return null; } $value = trim((string) $value); return $value === '' ? null : $value; }
+    private static function decodePayloadData($value): array { if (!$value) { return []; } $decoded = json_decode((string) $value, true); return is_array($decoded) ? $decoded : []; }
 }

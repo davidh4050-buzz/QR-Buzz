@@ -27,4 +27,9 @@ class Schema {
         global $wpdb;
         return $wpdb->prefix . 'qrbuzz_destination_rules';
     }
+
+    public static function workspacesTable(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'qrbuzz_workspaces';
+    }
 }
