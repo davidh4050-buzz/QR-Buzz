@@ -26,9 +26,14 @@ spl_autoload_register(function($class){
 });
 
 register_activation_hook(__FILE__, function(){
-    QRBuzz\Database\Installer::activate();
-    (new QRBuzz\Redirect\RedirectHandler())->addRewriteRule();
-    flush_rewrite_rules();
+    ob_start();
+    try {
+        QRBuzz\Database\Installer::activate();
+        (new QRBuzz\Redirect\RedirectHandler())->addRewriteRule();
+        flush_rewrite_rules();
+    } finally {
+        if (ob_get_level() > 0) { ob_end_clean(); }
+    }
 });
 
 register_deactivation_hook(__FILE__, function(){ flush_rewrite_rules(); });
