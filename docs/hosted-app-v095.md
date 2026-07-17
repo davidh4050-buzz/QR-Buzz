@@ -20,6 +20,8 @@ Authenticated app routes:
 - `/app/library`
 - `/app/qr/new`
 - `/app/qr/{id}`
+- `/app/qr/{id}/download/png`
+- `/app/qr/{id}/download/svg`
 - `/app/campaigns`
 - `/app/analytics`
 - `/app/settings/account`
@@ -30,11 +32,11 @@ The hosted app is rendered by the plugin and does not require normal users to en
 
 ## Authentication
 
-Registration and login use WordPress user/session APIs. New users receive the `qrbuzz_customer` role and are linked to a default workspace through `qrbuzz_workspace_members`.
+Registration and login use WordPress user/session APIs. New users receive the `qrbuzz_customer` role and are linked to a workspace through `qrbuzz_workspace_members`.
 
-Password reset uses WordPress reset keys with a QR Buzz frontend form.
+Password reset uses WordPress reset keys with QR Buzz frontend forms.
 
-Email verification is stored in `qrbuzz_user_profiles` using a hashed token.
+Email verification is stored in `qrbuzz_user_profiles` using a hashed token. Changing an account email address marks the profile as unverified again and sends a fresh verification link.
 
 ## Workspace Onboarding
 
@@ -46,6 +48,24 @@ New users are taken through:
 4. dashboard
 
 The default workspace is preserved for existing installs. Existing administrators are backfilled as workspace owners.
+
+## Hosted QR Workflows
+
+The hosted app can create QR assets through the existing QR Buzz type and payload services:
+
+- Dynamic URL
+- Static URL
+- WiFi
+- Business Card
+- Email
+- Phone
+- SMS
+- Location
+- Text
+
+Dynamic QR assets continue to encode the QR Buzz tracking URL and use the redirect engine. Static QR assets encode their final payload directly.
+
+The hosted QR detail page shows the encoded payload/destination, a QR preview, and customer-safe PNG/SVG download links scoped to the current workspace.
 
 ## Stripe Test Mode
 
@@ -82,5 +102,6 @@ This is intentionally conservative until live billing policy is final.
 - Register and complete onboarding with a Free plan.
 - Run a Stripe test checkout for Pro and Business.
 - Confirm webhook-driven plan activation.
-- Confirm `/app/dashboard`, QR creation, campaign creation, account settings, workspace settings, and billing settings.
+- Confirm payment-failed webhook behaviour falls back to Free-plan access.
+- Confirm `/app/dashboard`, QR creation, QR downloads, campaign creation, account settings, workspace settings, and billing settings.
 - Confirm existing printed QR codes still redirect.
