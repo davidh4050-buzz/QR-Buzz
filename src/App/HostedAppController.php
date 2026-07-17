@@ -351,7 +351,7 @@ class HostedAppController {
     private function topQrTable(array $rows): string { if (!$rows) { return '<p>No scan data yet.</p>'; } $html = '<table class="qrb-table"><thead><tr><th>QR</th><th>Scans</th><th>Last scan</th></tr></thead><tbody>'; foreach ($rows as $row) { $html .= '<tr><td><a href="' . esc_url(home_url('/app/qr/' . $row->id)) . '">' . esc_html($row->name) . '</a></td><td>' . esc_html((string) $row->scan_count) . '</td><td>' . esc_html($row->last_scan ?: '-') . '</td></tr>'; } return $html . '</tbody></table>'; }
 
     private function enqueueAppAssets(): void { if (current_user_can('upload_files')) { wp_enqueue_media(); } }
-    private function headAssets(): string { ob_start(); wp_print_styles(); wp_print_head_scripts(); return (string) ob_get_clean(); }
+    private function headAssets(): string { remove_action('wp_print_styles', 'print_emoji_styles'); ob_start(); wp_print_styles(); wp_print_head_scripts(); return (string) ob_get_clean(); }
     private function footerAssets(): string { ob_start(); wp_print_footer_scripts(); if (function_exists('wp_print_media_templates')) { wp_print_media_templates(); } return (string) ob_get_clean(); }
     private function appScripts(): string {
         $config = [
