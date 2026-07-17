@@ -3,6 +3,9 @@ namespace QRBuzz\App;
 
 use QRBuzz\Account\AuthService;
 use QRBuzz\Account\ProfileRepository;
+use QRBuzz\Analytics\AnalyticsRepository;
+use QRBuzz\Analytics\DateRange;
+use QRBuzz\Analytics\PerQRAnalyticsService;
 use QRBuzz\Billing\StripeService;
 use QRBuzz\Billing\SubscriptionRepository;
 use QRBuzz\Database\CampaignRepository;
@@ -10,8 +13,10 @@ use QRBuzz\Database\QRRepository;
 use QRBuzz\Database\WorkspaceRepository;
 use QRBuzz\Membership\EntitlementService;
 use QRBuzz\Membership\PlanRegistry;
+use QRBuzz\Models\QRCode;
 use QRBuzz\QR\Design\BrandKitSettings;
 use QRBuzz\QR\Design\QRDesignSettings;
+use QRBuzz\QR\Design\QRThemeRegistry;
 use QRBuzz\QR\QRGenerator;
 use QRBuzz\QR\Types\QRPayloadService;
 use QRBuzz\QR\Types\QRTypeRegistry;
@@ -33,6 +38,9 @@ class HostedAppController {
     private SubscriptionRepository $subscriptions;
     private StripeService $stripe;
     private QRGenerator $generator;
+    private QRThemeRegistry $themes;
+    private AnalyticsRepository $analyticsRepo;
+    private PerQRAnalyticsService $perQrAnalytics;
 
     public function __construct() {
         $this->profiles = new ProfileRepository();
@@ -46,9 +54,12 @@ class HostedAppController {
         $this->types = new QRTypeRegistry();
         $this->generator = new QRGenerator();
         $this->payloads = new QRPayloadService($this->types, $this->generator);
-        $this->brandKit = new BrandKitSettings(null, $this->workspaces);
+        $this->themes = new QRThemeRegistry();
+        $this->brandKit = new BrandKitSettings($this->themes, $this->workspaces);
         $this->subscriptions = new SubscriptionRepository();
         $this->stripe = new StripeService($this->subscriptions, $this->workspaceRepo);
+        $this->analyticsRepo = new AnalyticsRepository(null, $this->workspaces);
+        $this->perQrAnalytics = new PerQRAnalyticsService(null, $this->workspaces);
     }
 
     public function init(): void { add_action('template_redirect', [$this, 'route'], 0); }
@@ -72,8 +83,10 @@ class HostedAppController {
         if ($path === 'login') { $this->postLogin(); }
         if ($path === 'forgot-password') { $this->postPassword(); }
         if ($path === 'app/onboarding') { $this->postOnboarding(); }
-        if ($path === 'app/qr/new') { $this->postQr(); }
+        if ($path === 'app/qr/new') { $this->postQrStudio(); }
+        if (preg_match('#^app/qr/(\d+)/studio$#', $path, $m)) { $this->postQrStudio((int) $m[1]); }
         if ($path === 'app/campaigns') { $this->postCampaign(); }
+        if (preg_match('#^app/campaigns/(\d+)$#', $path, $m)) { $this->postCampaign((int) $m[1]); }
         if ($path === 'app/settings/account') { $this->postAccount(); }
         if ($path === 'app/settings/workspace') { $this->postWorkspace(); }
     }
@@ -129,25 +142,41 @@ class HostedAppController {
             $this->redirect('/app/onboarding?step=plan&error=stripe_config');
         }
         if ($action === 'workspace') { $this->workspaceRepo->updateSettings($workspace->id, ['name' => sanitize_text_field((string) ($_POST['workspace_name'] ?? $workspace->name)), 'website_url' => esc_url_raw((string) ($_POST['website_url'] ?? '')), 'intended_use' => sanitize_key((string) ($_POST['intended_use'] ?? '')), 'timezone' => sanitize_text_field((string) ($_POST['timezone'] ?? wp_timezone_string()))]); $this->workspaceRepo->updateOnboarding($workspace->id, 'pending', 'first_qr'); $this->profiles->updateOnboarding(get_current_user_id(), 'pending', 'first_qr'); $this->redirect('/app/onboarding?step=first_qr'); }
-        if ($action === 'complete') { $this->workspaceRepo->updateOnboarding($workspace->id, 'complete', 'complete'); $this->profiles->updateOnboarding(get_current_user_id(), 'complete', 'complete'); $this->redirect('/app/dashboard?welcome=1'); }
+        if ($action === 'complete') { $this->completeOnboarding(); $this->redirect('/app/dashboard?welcome=1'); }
     }
 
-    private function postQr(): void {
+    private function postQrStudio(int $id = 0): void {
         check_admin_referer('qrbuzz_app_qr', 'nonce');
-        if (!$this->entitlements->canCreate('qr_assets')) { $this->redirect('/app/qr/new?error=limit'); }
-        $type = $this->types->normalize(sanitize_key((string) ($_POST['type'] ?? 'dynamic_url')));
-        if ($type === 'dynamic_url' && !$this->entitlements->canCreate('dynamic_qr_assets')) { $this->redirect('/app/qr/new?error=dynamic_limit'); }
+        if (!$this->entitlements->canCreate('qr_assets') && $id === 0) { $this->redirect('/app/qr/new?error=limit'); }
+        $existing = $id > 0 ? $this->qrCodes->find($id) : null;
+        if ($id > 0 && !$existing) { $this->redirect('/app/library?error=missing'); }
+        $type = $this->types->normalize(sanitize_key((string) ($_POST['type'] ?? ($existing ? $existing->type : 'dynamic_url'))));
+        if ($id === 0 && $type === 'dynamic_url' && !$this->entitlements->canCreate('dynamic_qr_assets')) { $this->redirect('/app/qr/new?error=dynamic_limit'); }
+        $name = sanitize_text_field((string) ($_POST['name'] ?? ''));
         $payload = $this->payloadFromPost($type);
         $staticPayload = $this->payloads->build($type, $payload);
-        if (!$this->payloads->isPayloadValid($type, $staticPayload)) { $this->redirect('/app/qr/new?type=' . rawurlencode($type) . '&mode=simple&error=invalid'); }
+        if ($name === '' || !$this->payloads->isPayloadValid($type, $staticPayload)) { $this->redirect($id > 0 ? '/app/qr/' . $id . '/studio?error=invalid' : '/app/qr/new?type=' . rawurlencode($type) . '&studio=1&error=invalid'); }
+        $status = in_array((string) ($_POST['status'] ?? 'active'), ['active', 'paused'], true) ? (string) $_POST['status'] : 'active';
         $destination = $type === 'dynamic_url' ? esc_url_raw((string) ($payload['destination_url'] ?? '')) : ($type === 'static_url' ? esc_url_raw((string) ($payload['url'] ?? '')) : '');
-        $id = $this->qrCodes->create(sanitize_text_field((string) ($_POST['name'] ?? 'Untitled QR')), $destination, ['type' => $type, 'payload_data' => $payload, 'static_payload' => $staticPayload, 'status' => 'active', 'campaign_id' => absint($_POST['campaign_id'] ?? 0), 'design' => $this->brandKit->designDefaults()->toArray()]);
-        $this->workspaceRepo->updateOnboarding($this->workspaces->id(), 'complete', 'complete');
-        $this->profiles->updateOnboarding(get_current_user_id(), 'complete', 'complete');
-        $this->redirect('/app/qr/' . $id . '?created=1');
+        $design = QRDesignSettings::fromPost($_POST, $existing ? QRDesignSettings::fromQrCode($existing) : $this->newDesignDefaults());
+        if (!$this->entitlements->allows('logo_embedding')) { $design->logoAttachmentId = 0; }
+        $settings = ['type' => $type, 'payload_data' => $payload, 'static_payload' => $staticPayload, 'status' => $status, 'fallback_url' => $this->optionalUrl('fallback_url'), 'expires_at' => $this->optionalDateTime('expires_at'), 'scheduled_url' => $this->optionalUrl('scheduled_url'), 'scheduled_start_at' => $this->optionalDateTime('scheduled_start_at'), 'scheduled_end_at' => $this->optionalDateTime('scheduled_end_at'), 'campaign_id' => absint($_POST['campaign_id'] ?? 0), 'design' => $design->toArray()];
+        if ($id > 0) { $this->qrCodes->update($id, $name, $destination, $status, $settings, get_current_user_id()); $this->redirect('/app/qr/' . $id . '?saved=1'); }
+        $newId = $this->qrCodes->create($name, $destination, $settings);
+        $this->completeOnboarding();
+        $this->redirect('/app/qr/' . $newId . '?created=1');
     }
 
-    private function postCampaign(): void { check_admin_referer('qrbuzz_app_campaign', 'nonce'); if (!$this->entitlements->canCreate('campaigns')) { $this->redirect('/app/campaigns?error=limit'); } $name = sanitize_text_field((string) ($_POST['name'] ?? '')); if (!$name) { $this->redirect('/app/campaigns?error=invalid'); } $this->campaigns->create($name, sanitize_textarea_field((string) ($_POST['description'] ?? ''))); $this->redirect('/app/campaigns?created=1'); }
+    private function postCampaign(int $id = 0): void {
+        check_admin_referer('qrbuzz_app_campaign', 'nonce');
+        if (!$this->entitlements->canCreate('campaigns') && $id === 0) { $this->redirect('/app/campaigns?error=limit'); }
+        $name = sanitize_text_field((string) ($_POST['name'] ?? ''));
+        if (!$name) { $this->redirect($id > 0 ? '/app/campaigns/' . $id . '?error=invalid' : '/app/campaigns?error=invalid'); }
+        $description = sanitize_textarea_field((string) ($_POST['description'] ?? ''));
+        if ($id > 0) { $status = sanitize_key((string) ($_POST['status'] ?? 'active')); $this->campaigns->update($id, $name, $description, $status); $this->redirect('/app/campaigns/' . $id . '?saved=1'); }
+        $newId = $this->campaigns->create($name, $description);
+        $this->redirect('/app/campaigns/' . $newId . '?created=1');
+    }
 
     private function postAccount(): void {
         check_admin_referer('qrbuzz_app_account', 'nonce');
@@ -170,14 +199,16 @@ class HostedAppController {
     private function appPage(string $path): void {
         $workspace = $this->workspaces->current();
         $allowedDuringOnboarding = ['app/onboarding', 'app/qr/new'];
-        if (!$workspace->onboardingComplete() && !in_array($path, $allowedDuringOnboarding, true) && !preg_match('#^app/qr/(\d+)$#', $path)) { $this->redirect('/app/onboarding'); }
+        if (!$workspace->onboardingComplete() && !in_array($path, $allowedDuringOnboarding, true) && !preg_match('#^app/qr/(\d+)$#', $path) && !preg_match('#^app/qr/(\d+)/studio$#', $path)) { $this->redirect('/app/onboarding'); }
         if ($path === 'app' || $path === 'app/dashboard') { $this->app('Dashboard', $this->dashboard()); }
         if ($path === 'app/onboarding') { $this->page('Onboarding', $this->onboarding()); }
         if ($path === 'app/library') { $this->app('Library', $this->library()); }
         if ($path === 'app/qr/new') { $this->app('New QR', $this->qrForm()); }
+        if (preg_match('#^app/qr/(\d+)/studio$#', $path, $m)) { $this->app('QR Studio', $this->qrStudio((int) $m[1])); }
         if (preg_match('#^app/qr/(\d+)/download/(png|svg)$#', $path, $m)) { $this->downloadQr((int) $m[1], (string) $m[2]); }
         if (preg_match('#^app/qr/(\d+)$#', $path, $m)) { $this->app('QR detail', $this->qrDetail((int) $m[1])); }
         if ($path === 'app/campaigns') { $this->app('Campaigns', $this->campaignPage()); }
+        if (preg_match('#^app/campaigns/(\d+)$#', $path, $m)) { $this->app('Edit Campaign', $this->campaignEdit((int) $m[1])); }
         if ($path === 'app/analytics') { $this->app('Analytics', $this->analytics()); }
         if ($path === 'app/settings' || $path === 'app/settings/account') { $this->app('Account settings', $this->accountSettings()); }
         if ($path === 'app/settings/workspace') { $this->app('Workspace settings', $this->workspaceSettings()); }
@@ -185,67 +216,108 @@ class HostedAppController {
         $this->notFound();
     }
 
-    private function dashboard(): string { $s = $this->qrCodes->dashboardSummary(); $e = $this->entitlements->summary(); return $this->hero('Welcome to ' . esc_html($this->workspaces->current()->name), '<a class="qrb-button qrb-button-primary" href="' . esc_url(home_url('/app/qr/new')) . '">Create QR</a>') . $this->metrics([['QR assets',$s['total_qr_codes']],['Total scans',$s['total_scans']],['Campaigns',count($this->campaigns->active())],['Plan',$e['plan']['label']]]) . '<section class="qrb-card"><h2>Quick actions</h2><div class="qrb-actions"><a class="qrb-button" href="/app/library">QR Library</a><a class="qrb-button" href="/app/qr/new?type=dynamic_url">Dynamic QR</a><a class="qrb-button" href="/app/qr/new?type=static_url">Static QR</a><a class="qrb-button" href="/app/qr/new?type=wifi">WiFi QR</a><a class="qrb-button" href="/app/campaigns">New Campaign</a></div></section>' . $this->usageCard(); }
+    private function dashboard(): string { $s = $this->qrCodes->dashboardSummary(); $e = $this->entitlements->summary(); return $this->hero('Welcome to ' . esc_html($this->workspaces->current()->name), '<a class="qrb-button qrb-button-primary" href="' . esc_url(home_url('/app/qr/new')) . '">Create QR</a>') . $this->metrics([['QR assets',$s['total_qr_codes']],['Total scans',$s['total_scans']],['Campaigns',count($this->campaigns->active())],['Plan',$e['plan']['label']]]) . '<section class="qrb-card"><h2>Quick actions</h2><div class="qrb-actions"><a class="qrb-button" href="/app/library">QR Library</a><a class="qrb-button" href="/app/qr/new?type=dynamic_url&studio=1">Dynamic QR</a><a class="qrb-button" href="/app/qr/new?type=static_url&studio=1">Static QR</a><a class="qrb-button" href="/app/qr/new?type=wifi&studio=1">WiFi QR</a><a class="qrb-button" href="/app/campaigns">New Campaign</a></div></section>' . $this->usageCard(); }
     private function library(): string { $rows = ''; foreach ($this->qrCodes->queryWithScanCounts('', 1, 50) as $qr) { $rows .= '<tr><td><a href="' . esc_url(home_url('/app/qr/' . $qr->id)) . '">' . esc_html($qr->name) . '</a></td><td>' . esc_html($this->types->label($qr->type)) . '</td><td>' . esc_html((string) $qr->scanCount) . '</td><td>' . esc_html($qr->createdAt) . '</td></tr>'; } return '<div class="qrb-page-head"><h1>Library</h1><a class="qrb-button qrb-button-primary" href="/app/qr/new">New QR</a></div><table class="qrb-table"><thead><tr><th>Name</th><th>Type</th><th>Scans</th><th>Created</th></tr></thead><tbody>' . ($rows ?: '<tr><td colspan="4">No QR assets yet.</td></tr>') . '</tbody></table>'; }
 
     private function qrForm(): string {
-        $selected = $this->types->normalize(sanitize_key((string) ($_GET['type'] ?? 'dynamic_url')));
+        if (!empty($_GET['studio'])) { return $this->qrStudio(0); }
         $html = '<div class="qrb-page-head"><h1>Choose QR type</h1><a class="qrb-button" href="/app/dashboard">Dashboard</a></div>';
         if (!empty($_GET['error'])) { $html .= '<p class="qrb-alert">That QR could not be created. Please check the details and try again.</p>'; }
         $html .= '<section class="qrb-type-grid">';
-        foreach ($this->types->all() as $type => $meta) {
-            $active = $type === $selected ? ' qrb-type-card-active' : '';
-            $studio = $this->studioUrl($type);
-            $html .= '<article class="qrb-card qrb-type-card' . esc_attr($active) . '"><h2>' . esc_html($meta['label']) . '</h2><p>' . esc_html($meta['description']) . '</p><div class="qrb-actions"><a class="qrb-button" href="' . esc_url(home_url('/app/qr/new?type=' . rawurlencode($type))) . '">Select</a><a class="qrb-button qrb-button-primary" href="' . esc_url($studio) . '">Open QR Studio</a></div></article>';
-        }
-        $html .= '</section>';
-        if (!current_user_can('manage_options')) { $html .= '<p class="qrb-alert">Full QR Studio is currently available in WordPress admin. A hosted customer version is planned for the next pass.</p>' . $this->simpleQrForm($selected); }
+        foreach ($this->types->all() as $type => $meta) { $html .= '<article class="qrb-card qrb-type-card"><h2>' . esc_html($meta['label']) . '</h2><p>' . esc_html($meta['description']) . '</p><a class="qrb-button qrb-button-primary" href="' . esc_url(home_url('/app/qr/new?type=' . rawurlencode($type) . '&studio=1')) . '">Open in QR Studio</a></article>'; }
+        return $html . '</section>';
+    }
+
+    private function qrStudio(int $id): string {
+        $qr = $id > 0 ? $this->qrCodes->find($id) : null;
+        if ($id > 0 && !$qr) { return '<h1>QR not found</h1>'; }
+        $type = $qr ? $qr->type : $this->types->normalize(sanitize_key((string) ($_GET['type'] ?? 'dynamic_url')));
+        $payload = $qr ? $qr->payloadData : [];
+        if ($qr && !$payload) { $payload = ['destination_url' => $qr->destinationUrl, 'url' => $qr->destinationUrl]; }
+        $design = $qr ? QRDesignSettings::fromQrCode($qr) : $this->newDesignDefaults();
+        $title = $qr ? 'Edit QR' : 'New QR';
+        $action = $qr ? home_url('/app/qr/' . $qr->id . '/studio') : home_url('/app/qr/new');
+        return '<div class="qrb-page-head"><h1>QR Studio</h1><a class="qrb-button" href="/app/qr/new">Change type</a></div>' . (!empty($_GET['error']) ? '<p class="qrb-alert">Please check the QR details and try again.</p>' : '') . '<div class="qrb-studio"><aside class="qrb-card qrb-studio-preview"><h2>Preview</h2>' . $this->studioPreview($qr, $type, $payload, $design) . '</aside><form class="qrb-card qrb-form" method="post" action="' . esc_url($action) . '">' . wp_nonce_field('qrbuzz_app_qr', 'nonce', true, false) . '<h2>' . esc_html($title) . '</h2>' . $this->studioContentFields($qr, $type, $payload) . $this->studioDesignFields($design) . '<button class="qrb-button qrb-button-primary">' . esc_html($qr ? 'Update QR Code' : 'Create QR Code') . '</button></form></div>';
+    }
+
+    private function studioContentFields(?QRCode $qr, string $type, array $payload): string {
+        $html = '<fieldset><legend>Content</legend><label>Name<input name="name" value="' . esc_attr($qr ? $qr->name : '') . '" required></label><label>Type<select name="type">';
+        foreach ($this->types->all() as $key => $meta) { $html .= '<option value="' . esc_attr($key) . '" ' . selected($type, $key, false) . '>' . esc_html($meta['label']) . '</option>'; }
+        $html .= '</select></label><label>Campaign<select name="campaign_id"><option value="0">Unassigned</option>';
+        foreach ($this->campaigns->active() as $campaign) { $html .= '<option value="' . esc_attr($campaign->id) . '" ' . selected($qr ? $qr->campaignId : 0, $campaign->id, false) . '>' . esc_html($campaign->name) . '</option>'; }
+        $html .= '</select></label></fieldset>';
+        foreach (array_keys($this->types->all()) as $fieldType) { $html .= '<fieldset><legend>' . esc_html($this->types->label($fieldType)) . '</legend>' . $this->typeFields($fieldType, $payload, $qr) . '</fieldset>'; }
         return $html;
     }
 
-    private function simpleQrForm(string $type): string {
-        return '<details class="qrb-card"><summary>Create with the simple hosted form</summary><form class="qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_qr', 'nonce', true, false) . '<input type="hidden" name="type" value="' . esc_attr($type) . '"><label>Name<input name="name" required></label><label>URL or text<input name="payload[destination_url]" type="url" placeholder="https://example.com"></label><label>Text<textarea name="payload[text]"></textarea></label><button class="qrb-button qrb-button-primary">Create QR</button></form></details>';
+    private function typeFields(string $type, array $payload, ?QRCode $qr): string {
+        if ($type === 'dynamic_url') { return $this->input('Destination URL', 'payload[destination_url]', $payload['destination_url'] ?? ($qr ? $qr->destinationUrl : ''), 'url') . '<label>Status<select name="status"><option value="active" ' . selected($qr ? $qr->status : 'active', 'active', false) . '>Active</option><option value="paused" ' . selected($qr ? $qr->status : '', 'paused', false) . '>Paused</option></select></label>' . $this->input('Scheduled URL', 'scheduled_url', $qr ? (string) $qr->scheduledUrl : '', 'url') . $this->input('Schedule start', 'scheduled_start_at', $this->localInput($qr ? $qr->scheduledStartAt : null), 'datetime-local') . $this->input('Schedule end', 'scheduled_end_at', $this->localInput($qr ? $qr->scheduledEndAt : null), 'datetime-local') . $this->input('Expiry date/time', 'expires_at', $this->localInput($qr ? $qr->expiresAt : null), 'datetime-local') . $this->input('Fallback URL', 'fallback_url', $qr ? (string) $qr->fallbackUrl : '', 'url'); }
+        if ($type === 'static_url') { return $this->input('URL', 'payload[url]', $payload['url'] ?? '', 'url'); }
+        if ($type === 'wifi') { return $this->input('SSID', 'payload[ssid]', $payload['ssid'] ?? '') . $this->input('Password', 'payload[password]', $payload['password'] ?? '') . '<label>Encryption<select name="payload[encryption]"><option value="WPA" ' . selected($payload['encryption'] ?? 'WPA', 'WPA', false) . '>WPA/WPA2</option><option value="WEP" ' . selected($payload['encryption'] ?? '', 'WEP', false) . '>WEP</option><option value="NOPASS" ' . selected($payload['encryption'] ?? '', 'NOPASS', false) . '>None</option></select></label><label><input type="checkbox" name="payload[hidden]" value="1" ' . checked(!empty($payload['hidden']), true, false) . '> Hidden network</label>'; }
+        if ($type === 'vcard') { $html = ''; foreach (['first_name'=>'First name','last_name'=>'Last name','organisation'=>'Organisation','job_title'=>'Job title','phone'=>'Phone','email'=>'Email','website'=>'Website','address'=>'Address'] as $key => $label) { $html .= $key === 'address' ? $this->textarea($label, 'payload[' . $key . ']', $payload[$key] ?? '') : $this->input($label, 'payload[' . $key . ']', $payload[$key] ?? '', $key === 'email' ? 'email' : ($key === 'website' ? 'url' : 'text')); } return $html; }
+        if ($type === 'email') { return $this->input('Recipient', 'payload[recipient]', $payload['recipient'] ?? '', 'email') . $this->input('Subject', 'payload[subject]', $payload['subject'] ?? '') . $this->textarea('Body', 'payload[body]', $payload['body'] ?? ''); }
+        if ($type === 'phone') { return $this->input('Phone number', 'payload[phone]', $payload['phone'] ?? ''); }
+        if ($type === 'sms') { return $this->input('Phone number', 'payload[phone]', $payload['phone'] ?? '') . $this->textarea('Message', 'payload[message]', $payload['message'] ?? ''); }
+        if ($type === 'location') { return $this->input('Latitude', 'payload[latitude]', $payload['latitude'] ?? '') . $this->input('Longitude', 'payload[longitude]', $payload['longitude'] ?? '') . $this->input('Label', 'payload[label]', $payload['label'] ?? ''); }
+        return $this->textarea('Text', 'payload[text]', $payload['text'] ?? '');
+    }
+
+    private function studioDesignFields(QRDesignSettings $design): string {
+        $html = '<fieldset><legend>Design</legend><label>Theme<select name="theme">';
+        foreach ($this->themes->all() as $key => $theme) { $html .= '<option value="' . esc_attr($key) . '" ' . selected($design->theme, $key, false) . '>' . esc_html($theme['label']) . '</option>'; }
+        $html .= '</select></label>' . $this->input('Foreground colour', 'foreground_color', $design->foregroundColor, 'color') . $this->input('Background colour', 'background_color', $design->backgroundColor, 'color') . '<label><input type="checkbox" name="transparent_background" value="1" ' . checked($design->transparentBackground, true, false) . '> Transparent background</label><label>Error correction<select name="error_correction">';
+        foreach (['L'=>'L - smallest','M'=>'M - balanced','Q'=>'Q - branded','H'=>'H - logo safe'] as $value => $label) { $html .= '<option value="' . esc_attr($value) . '" ' . selected($design->errorCorrection, $value, false) . '>' . esc_html($label) . '</option>'; }
+        $logoNote = $this->entitlements->allows('logo_embedding') ? '' : '<p class="qrb-alert">Logo embedding is available on Pro and Business plans.</p>';
+        return $html . '</select></label>' . $this->input('Quiet zone / margin', 'margin', (string) $design->margin, 'number') . $this->input('Logo attachment ID', 'logo_attachment_id', $this->entitlements->allows('logo_embedding') ? (string) $design->logoAttachmentId : '0', 'number') . $this->input('Logo size (%)', 'logo_size', (string) $design->logoSize, 'number') . $logoNote . '</fieldset>';
+    }
+
+    private function studioPreview(?QRCode $qr, string $type, array $payload, QRDesignSettings $design): string {
+        $data = $qr ? $this->payloads->payloadForQrCode($qr) : $this->payloads->build($type, $payload);
+        if (!$data || !$this->payloads->isPayloadValid($type, $data)) { return '<p>Add content, save, and the preview will appear here.</p>'; }
+        try { return '<img class="qrb-preview" src="' . esc_attr($this->generator->generatePngDataUri($data, 260, $design)) . '" alt="">'; } catch (\Throwable $e) { return '<p class="qrb-alert">Preview could not be generated.</p>'; }
     }
 
     private function qrDetail(int $id): string {
         $qr = $this->qrCodes->find($id); if (!$qr) { return '<h1>QR not found</h1>'; }
         $payload = $this->payloads->payloadForQrCode($qr);
         try { $preview = '<img class="qrb-preview" src="' . esc_attr($this->generator->generatePngDataUri($payload, 260, QRDesignSettings::fromQrCode($qr))) . '" alt="">'; } catch (\Throwable $e) { $preview = '<p class="qrb-alert">Preview could not be generated.</p>'; }
-        $png = $this->downloadUrl($qr->id, 'png');
-        $svg = $this->downloadUrl($qr->id, 'svg');
-        return '<div class="qrb-page-head"><h1>' . esc_html($qr->name) . '</h1><div class="qrb-actions"><a class="qrb-button" href="' . esc_url($png) . '">Download PNG</a><a class="qrb-button" href="' . esc_url($svg) . '">Download SVG</a></div></div><div class="qrb-card qrb-detail">' . $preview . '<div><p><strong>Type:</strong> ' . esc_html($this->types->label($qr->type)) . '</p><p><strong>Destination / payload:</strong> ' . esc_html($qr->destinationUrl ?: $qr->staticPayload) . '</p><p><strong>Scans:</strong> ' . esc_html((string) $qr->scanCount) . '</p><p><code>' . esc_html($qr->isTrackable() ? $this->generator->trackingUrl($qr->shortcode) : $qr->shortcode) . '</code></p><p><a class="qrb-button" href="' . esc_url($this->studioUrl($qr->type, $qr->id)) . '">Edit in QR Studio</a></p></div></div>';
+        $png = $this->downloadUrl($qr->id, 'png'); $svg = $this->downloadUrl($qr->id, 'svg');
+        return '<div class="qrb-page-head"><h1>' . esc_html($qr->name) . '</h1><div class="qrb-actions"><a class="qrb-button" href="' . esc_url($this->studioUrl($qr->type, $qr->id)) . '">Edit in QR Studio</a><a class="qrb-button" href="' . esc_url($png) . '">Download PNG</a><a class="qrb-button" href="' . esc_url($svg) . '">Download SVG</a></div></div><div class="qrb-card qrb-detail">' . $preview . '<div><p><strong>Type:</strong> ' . esc_html($this->types->label($qr->type)) . '</p><p><strong>Destination / payload:</strong> ' . esc_html($qr->destinationUrl ?: $qr->staticPayload) . '</p><p><strong>Scans:</strong> ' . esc_html((string) $qr->scanCount) . '</p><p><code>' . esc_html($qr->isTrackable() ? $this->generator->trackingUrl($qr->shortcode) : $qr->shortcode) . '</code></p></div></div>' . $this->qrAnalyticsBlock($qr);
+    }
+
+    private function qrAnalyticsBlock(QRCode $qr): string {
+        if (!$qr->isTrackable()) { return '<section class="qrb-card"><h2>Analytics</h2><p>Static QR codes do not use QR Buzz tracking. To collect analytics, create a Dynamic URL QR code.</p></section>'; }
+        $stats = $this->perQrAnalytics->stats($qr->id);
+        $html = '<section class="qrb-card"><h2>Analytics</h2>' . $this->metrics([['Total scans',$stats['total_scans']],['Today',$stats['scans_today']],['Last 7 days',$stats['scans_last_7_days']],['Last 30 days',$stats['scans_last_30_days']],['Latest scan',$stats['latest_scan'] ?: '-']]);
+        if ($this->entitlements->allows('advanced_analytics')) { $html .= '<h3>Trend</h3>' . $this->barChart($this->perQrAnalytics->scanCountsByDay($qr->id, 30)) . '<div class="qrb-analytics-grid"><div><h3>Devices</h3>' . $this->breakdownTable($this->perQrAnalytics->deviceBreakdown($qr->id)) . '</div><div><h3>Browsers</h3>' . $this->breakdownTable($this->perQrAnalytics->browserBreakdown($qr->id)) . '</div><div><h3>Referrers</h3>' . $this->breakdownTable($this->perQrAnalytics->referrerBreakdown($qr->id)) . '</div></div><h3>Recent scans</h3>' . $this->recentScansTable($this->perQrAnalytics->recentScans($qr->id, 10)); }
+        return $html . '</section>';
     }
 
     private function downloadQr(int $id, string $format): void {
         check_admin_referer('qrbuzz_app_download_' . $id);
         $qr = $this->qrCodes->find($id);
         if (!$qr) { wp_die(esc_html__('QR code not found.', 'qr-buzz'), 404); }
-        try {
-            $payload = $this->payloads->payloadForQrCode($qr);
-            $design = QRDesignSettings::fromQrCode($qr);
-            if ($format === 'svg') { $content = $this->generator->generateSvg($payload, 600, $design); $mime = 'image/svg+xml'; } else { $content = $this->generator->generatePng($payload, 600, $design); $mime = 'image/png'; }
-        } catch (\Throwable $exception) { wp_die(esc_html__('QR download could not be generated. Please try again from QR Studio.', 'qr-buzz'), 500); }
-        nocache_headers();
-        header('Content-Type: ' . $mime);
-        header('Content-Disposition: attachment; filename="' . $this->filename($qr->name, $qr->shortcode, $format) . '"');
-        header('Content-Length: ' . strlen($content));
-        echo $content;
-        exit;
+        try { $payload = $this->payloads->payloadForQrCode($qr); $design = QRDesignSettings::fromQrCode($qr); if ($format === 'svg') { $content = $this->generator->generateSvg($payload, 600, $design); $mime = 'image/svg+xml'; } else { $content = $this->generator->generatePng($payload, 600, $design); $mime = 'image/png'; } } catch (\Throwable $exception) { wp_die(esc_html__('QR download could not be generated. Please try again from QR Studio.', 'qr-buzz'), 500); }
+        nocache_headers(); header('Content-Type: ' . $mime); header('Content-Disposition: attachment; filename="' . $this->filename($qr->name, $qr->shortcode, $format) . '"'); header('Content-Length: ' . strlen($content)); echo $content; exit;
     }
 
-    private function campaignPage(): string { $rows = ''; foreach ($this->campaigns->all() as $c) { $rows .= '<tr><td>' . esc_html($c->name) . '</td><td>' . esc_html($c->status) . '</td><td>' . esc_html((string) $c->qrCount) . '</td><td>' . esc_html((string) $c->scanCount) . '</td></tr>'; } return '<div class="qrb-page-head"><h1>Campaigns</h1></div><form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_campaign', 'nonce', true, false) . '<label>Name<input name="name" required></label><label>Description<textarea name="description"></textarea></label><button class="qrb-button qrb-button-primary">Create Campaign</button></form><table class="qrb-table"><tbody>' . ($rows ?: '<tr><td>No campaigns yet.</td></tr>') . '</tbody></table>'; }
-    private function analytics(): string { $s = $this->qrCodes->dashboardSummary(); return '<h1>Analytics</h1>' . $this->metrics([['Total scans',$s['total_scans']],['Latest scan',$s['latest_scan'] ?: '-'],['Dynamic QR',$s['dynamic_qr_codes']],['Static QR',$s['static_qr_codes']]]); }
+    private function campaignPage(): string { $rows = ''; foreach ($this->campaigns->all() as $c) { $rows .= '<tr><td><a href="' . esc_url(home_url('/app/campaigns/' . $c->id)) . '">' . esc_html($c->name) . '</a></td><td>' . esc_html($c->status) . '</td><td>' . esc_html((string) $c->qrCount) . '</td><td>' . esc_html((string) $c->scanCount) . '</td></tr>'; } return '<div class="qrb-page-head"><h1>Campaigns</h1></div><form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_campaign', 'nonce', true, false) . '<label>Name<input name="name" required></label><label>Description<textarea name="description"></textarea></label><button class="qrb-button qrb-button-primary">Create Campaign</button></form><table class="qrb-table"><thead><tr><th>Campaign</th><th>Status</th><th>QR codes</th><th>Scans</th></tr></thead><tbody>' . ($rows ?: '<tr><td colspan="4">No campaigns yet.</td></tr>') . '</tbody></table>'; }
+    private function campaignEdit(int $id): string { $c = $this->campaigns->find($id); if (!$c) { return '<h1>Campaign not found</h1>'; } return '<div class="qrb-page-head"><h1>Edit Campaign</h1><a class="qrb-button" href="/app/campaigns">Campaigns</a></div><form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_campaign', 'nonce', true, false) . '<label>Name<input name="name" value="' . esc_attr($c->name) . '" required></label><label>Description<textarea name="description">' . esc_textarea($c->description) . '</textarea></label><label>Status<select name="status"><option value="active" ' . selected($c->status, 'active', false) . '>Active</option><option value="archived" ' . selected($c->status, 'archived', false) . '>Archived</option></select></label><button class="qrb-button qrb-button-primary">Save Campaign</button></form>' . $this->metrics([['QR codes',$c->qrCount],['Dynamic',$c->dynamicCount],['Static',$c->staticCount],['Scans',$c->scanCount]]); }
+
+    private function analytics(): string {
+        $rangeKey = sanitize_key((string) ($_GET['range'] ?? '30days'));
+        $range = DateRange::fromRequest($rangeKey);
+        $stats = $this->analyticsRepo->dashboardStats($range);
+        $html = '<div class="qrb-page-head"><h1>Analytics</h1><form><select name="range" onchange="this.form.submit()"><option value="today" ' . selected($rangeKey, 'today', false) . '>Today</option><option value="7days" ' . selected($rangeKey, '7days', false) . '>Last 7 days</option><option value="30days" ' . selected($rangeKey, '30days', false) . '>Last 30 days</option><option value="all" ' . selected($rangeKey, 'all', false) . '>All time</option></select></form></div>' . $this->metrics([['Total scans',$stats['total_scans']],['Scans today',$stats['scans_today']],['Last 7 days',$stats['scans_last_7_days']],['Latest scan',$stats['latest_scan'] ?: '-']]);
+        if (!$this->entitlements->allows('advanced_analytics')) { return $html . '<section class="qrb-card"><h2>Advanced analytics</h2><p>Upgrade to Pro or Business for trend charts, top QR codes, device, browser, referrer, and recent scan breakdowns.</p></section>'; }
+        return $html . '<section class="qrb-card"><h2>Scan trend</h2>' . $this->barChart($this->analyticsRepo->scanCountsByDay($range)) . '</section><section class="qrb-card"><h2>Top QR codes</h2>' . $this->topQrTable($this->analyticsRepo->topQrCodes($range, 10)) . '</section><section class="qrb-card"><h2>Breakdowns</h2><div class="qrb-analytics-grid"><div><h3>Devices</h3>' . $this->breakdownTable($this->analyticsRepo->deviceBreakdown($range)) . '</div><div><h3>Browsers</h3>' . $this->breakdownTable($this->analyticsRepo->browserBreakdown($range)) . '</div></div></section><section class="qrb-card"><h2>Recent scans</h2>' . $this->recentScansTable($this->analyticsRepo->recentScans($range, 20)) . '</section>';
+    }
+
     private function accountSettings(): string { $u = wp_get_current_user(); $p = $this->profiles->profile($u->ID); $notice = !empty($_GET['verify']) ? '<p class="qrb-alert">We sent a verification email to your new address.</p>' : ''; return '<h1>Account</h1>' . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_account', 'nonce', true, false) . '<label>First name<input name="first_name" value="' . esc_attr($u->first_name) . '"></label><label>Last name<input name="last_name" value="' . esc_attr($u->last_name) . '"></label><label>Email<input type="email" name="email" value="' . esc_attr($u->user_email) . '"></label><p>Email verification: ' . esc_html($p && $p->email_verified ? 'Verified' : 'Not verified') . '</p><label>New password<input type="password" name="password"></label><label>Confirm password<input type="password" name="password_confirm"></label><button class="qrb-button qrb-button-primary">Save account</button></form>'; }
     private function workspaceSettings(): string { $w = $this->workspaces->current(); return '<h1>Workspace</h1><form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_workspace', 'nonce', true, false) . '<label>Name<input name="name" value="' . esc_attr($w->name) . '"></label><label>Website<input name="website_url" value="' . esc_attr($w->websiteUrl) . '"></label><label>Timezone<input name="timezone" value="' . esc_attr($w->timezone ?: wp_timezone_string()) . '"></label><label>Intended use<input name="intended_use" value="' . esc_attr($w->intendedUse) . '"></label><button class="qrb-button qrb-button-primary">Save workspace</button></form>'; }
     private function billingSettings(): string { $e = $this->entitlements->summary(); $sub = $e['subscription']; return '<h1>Billing</h1><div class="qrb-card"><p><strong>Current plan:</strong> ' . esc_html($e['plan']['label']) . '</p><p><strong>Status:</strong> ' . esc_html($sub['status']) . '</p><p><strong>Renewal:</strong> ' . esc_html($sub['renewal_date'] ?: '-') . '</p><p class="qrb-alert">Stripe is in test-mode prototype configuration for v0.9.5. If test keys are not configured, paid plan selection runs in local prototype mode.</p><a class="qrb-button" href="/app/onboarding?step=plan">Change plan</a></div>' . $this->usageCard(); }
 
-    private function onboarding(): string {
-        $step = sanitize_key((string) ($_GET['step'] ?? $this->workspaces->current()->onboardingStep ?: 'plan'));
-        if ($step === 'workspace') { $notice = !empty($_GET['billing']) ? '<p class="qrb-alert">Stripe test keys are not configured yet, so this plan has been selected in local prototype mode.</p>' : ''; return '<h1>Create workspace</h1>' . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_onboarding', 'nonce', true, false) . '<input type="hidden" name="onboarding_action" value="workspace"><label>Workspace name<input name="workspace_name" value="' . esc_attr($this->workspaces->current()->name) . '"></label><label>Website<input name="website_url" type="url"></label><label>Intended use<select name="intended_use"><option value="marketing">Marketing campaigns</option><option value="wifi">WiFi access</option><option value="events">Events</option><option value="other">Other</option></select></label><button class="qrb-button qrb-button-primary">Continue</button></form>'; }
-        if ($step === 'first_qr') { return '<h1>Create your first QR</h1><div class="qrb-card"><div class="qrb-actions"><a class="qrb-button" href="/app/qr/new?type=dynamic_url">Dynamic Website QR</a><a class="qrb-button" href="/app/qr/new?type=static_url">Static Website QR</a><a class="qrb-button" href="/app/qr/new?type=wifi">WiFi QR</a></div><form method="post">' . wp_nonce_field('qrbuzz_onboarding', 'nonce', true, false) . '<input type="hidden" name="onboarding_action" value="complete"><button class="qrb-button qrb-button-primary">Skip for now</button></form></div>'; }
-        return '<h1>Choose plan</h1>' . (!empty($_GET['error']) ? '<p class="qrb-alert">Stripe checkout is not available. You can still choose a paid plan in local prototype mode while test keys are configured.</p>' : '') . $this->planCards(true);
-    }
-
+    private function onboarding(): string { $step = sanitize_key((string) ($_GET['step'] ?? $this->workspaces->current()->onboardingStep ?: 'plan')); if ($step === 'workspace') { $notice = !empty($_GET['billing']) ? '<p class="qrb-alert">Stripe test keys are not configured yet, so this plan has been selected in local prototype mode.</p>' : ''; return '<h1>Create workspace</h1>' . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_onboarding', 'nonce', true, false) . '<input type="hidden" name="onboarding_action" value="workspace"><label>Workspace name<input name="workspace_name" value="' . esc_attr($this->workspaces->current()->name) . '"></label><label>Website<input name="website_url" type="url"></label><label>Intended use<select name="intended_use"><option value="marketing">Marketing campaigns</option><option value="wifi">WiFi access</option><option value="events">Events</option><option value="other">Other</option></select></label><button class="qrb-button qrb-button-primary">Continue</button></form>'; } if ($step === 'first_qr') { return '<h1>Create your first QR</h1><div class="qrb-card"><div class="qrb-actions"><a class="qrb-button" href="/app/qr/new?type=dynamic_url&studio=1">Dynamic Website QR</a><a class="qrb-button" href="/app/qr/new?type=static_url&studio=1">Static Website QR</a><a class="qrb-button" href="/app/qr/new?type=wifi&studio=1">WiFi QR</a></div><form method="post">' . wp_nonce_field('qrbuzz_onboarding', 'nonce', true, false) . '<input type="hidden" name="onboarding_action" value="complete"><button class="qrb-button qrb-button-primary">Skip for now</button></form></div>'; } return '<h1>Choose plan</h1>' . (!empty($_GET['error']) ? '<p class="qrb-alert">Stripe checkout is not available. You can still choose a paid plan in local prototype mode while test keys are configured.</p>' : '') . $this->planCards(true); }
     private function pricing(): string { return '<h1>Plans</h1>' . $this->planCards(false); }
     private function planCards(bool $form): string { $html = '<div class="qrb-plan-grid">'; foreach ($this->plans->plans() as $key => $plan) { $features = implode(', ', array_keys(array_filter($plan['features']))); $html .= '<div class="qrb-card"><h2>' . esc_html($plan['label']) . '</h2><p>' . esc_html($features) . '</p>'; if ($form) { $button = !$this->stripe->configured() && $key !== 'free' ? 'Choose ' . $plan['label'] . ' (prototype)' : 'Choose ' . $plan['label']; $html .= '<form method="post">' . wp_nonce_field('qrbuzz_onboarding', 'nonce', true, false) . '<input type="hidden" name="onboarding_action" value="plan"><input type="hidden" name="plan_key" value="' . esc_attr($key) . '"><button class="qrb-button qrb-button-primary">' . esc_html($button) . '</button></form>'; } $html .= '</div>'; } return $html . '</div>'; }
 
@@ -256,17 +328,28 @@ class HostedAppController {
     private function verifyEmail(): void { $userId = absint($_GET['user'] ?? 0); $token = (string) ($_GET['token'] ?? ''); $ok = $userId && $token && $this->profiles->verifyByToken($userId, $token); $this->page('Verify email', '<h1>' . ($ok ? 'Email verified' : 'Verification failed') . '</h1><p><a class="qrb-button" href="/app/dashboard">Continue</a></p>'); }
     private function requireApp(): void { if (!is_user_logged_in()) { $this->redirect('/login?redirect=' . rawurlencode(home_url('/' . $this->path()))); } }
     private function redirectAfterLogin(): void { $w = $this->workspaces->current(); $this->redirect($w->onboardingComplete() ? '/app/dashboard' : '/app/onboarding'); }
-    private function payloadFromPost(string $type): array { $payload = isset($_POST['payload']) && is_array($_POST['payload']) ? wp_unslash($_POST['payload']) : []; $clean = []; foreach ($payload as $key => $value) { $clean[sanitize_key((string) $key)] = is_scalar($value) ? sanitize_textarea_field((string) $value) : ''; } if ($type === 'dynamic_url') { $clean['destination_url'] = esc_url_raw($clean['destination_url'] ?? ''); } if ($type === 'static_url') { $clean['url'] = esc_url_raw($clean['destination_url'] ?? $clean['url'] ?? ''); } return $clean; }
+    private function completeOnboarding(): void { $this->workspaceRepo->updateOnboarding($this->workspaces->id(), 'complete', 'complete'); $this->profiles->updateOnboarding(get_current_user_id(), 'complete', 'complete'); }
+    private function payloadFromPost(string $type): array { $payload = isset($_POST['payload']) && is_array($_POST['payload']) ? wp_unslash($_POST['payload']) : []; $clean = []; foreach ($payload as $key => $value) { $clean[sanitize_key((string) $key)] = is_scalar($value) ? sanitize_textarea_field((string) $value) : ''; } if ($type === 'dynamic_url') { $clean['destination_url'] = esc_url_raw($clean['destination_url'] ?? ''); } if ($type === 'static_url') { $clean['url'] = esc_url_raw($clean['url'] ?? $clean['destination_url'] ?? ''); } if ($type === 'vcard' && isset($clean['website'])) { $clean['website'] = esc_url_raw($clean['website']); } if ($type === 'email' && isset($clean['recipient'])) { $clean['recipient'] = sanitize_email($clean['recipient']); } $clean['hidden'] = !empty($payload['hidden']) ? '1' : ''; return $clean; }
     private function usageCard(): string { $e = $this->entitlements->summary(); return '<section class="qrb-card"><h2>Usage</h2><p>QR assets: ' . esc_html((string) $e['usage']['qr_assets']) . ' / ' . esc_html($e['limits']['qr_assets'] === null ? 'Unlimited' : (string) $e['limits']['qr_assets']) . '</p><p>Campaigns: ' . esc_html((string) $e['usage']['campaigns']) . ' / ' . esc_html($e['limits']['campaigns'] === null ? 'Unlimited' : (string) $e['limits']['campaigns']) . '</p></section>'; }
     private function metrics(array $metrics): string { $html = '<div class="qrb-metrics">'; foreach ($metrics as $m) { $html .= '<div class="qrb-card"><span>' . esc_html((string) $m[0]) . '</span><strong>' . esc_html((string) $m[1]) . '</strong></div>'; } return $html . '</div>'; }
     private function hero(string $title, string $action = ''): string { return '<section class="qrb-hero"><h1>' . $title . '</h1>' . $action . '</section>'; }
     private function filename(string $name, string $shortcode, string $extension): string { $safe = sanitize_title($name); if ($safe === '') { $safe = strtolower($shortcode); } return $safe . '-' . strtolower($shortcode) . '.' . $extension; }
-    private function studioUrl(string $type, int $id = 0): string { return $id > 0 ? admin_url('admin.php?page=qr-buzz-codes&edit=' . $id) : admin_url('admin.php?page=qr-buzz-create&type=' . rawurlencode($type)); }
-    private function downloadUrl(int $id, string $format): string { if (current_user_can('manage_options')) { return wp_nonce_url(admin_url('admin-post.php?action=qrbuzz_download_' . $format . '&qr_id=' . $id), 'qrbuzz_download_qr_' . $id); } return wp_nonce_url(home_url('/app/qr/' . $id . '/download/' . $format), 'qrbuzz_app_download_' . $id); }
+    private function studioUrl(string $type, int $id = 0): string { return $id > 0 ? home_url('/app/qr/' . $id . '/studio') : home_url('/app/qr/new?type=' . rawurlencode($type) . '&studio=1'); }
+    private function downloadUrl(int $id, string $format): string { return wp_nonce_url(home_url('/app/qr/' . $id . '/download/' . $format), 'qrbuzz_app_download_' . $id); }
+    private function input(string $label, string $name, string $value, string $type = 'text'): string { return '<label>' . esc_html($label) . '<input type="' . esc_attr($type) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"></label>'; }
+    private function textarea(string $label, string $name, string $value): string { return '<label>' . esc_html($label) . '<textarea name="' . esc_attr($name) . '">' . esc_textarea($value) . '</textarea></label>'; }
+    private function newDesignDefaults(): QRDesignSettings { $design = $this->brandKit->designDefaults(); $design->logoAttachmentId = 0; return $design; }
+    private function optionalUrl(string $field): ?string { $url = esc_url_raw((string) ($_POST[$field] ?? '')); return trim($url) === '' ? null : $url; }
+    private function optionalDateTime(string $field): ?string { $value = sanitize_text_field((string) ($_POST[$field] ?? '')); if ($value === '') { return null; } $timestamp = strtotime($value, current_time('timestamp')); return $timestamp ? gmdate('Y-m-d H:i:s', $timestamp) : null; }
+    private function localInput(?string $date): string { return $date ? mysql2date('Y-m-d\TH:i', $date) : ''; }
+    private function barChart(array $series): string { $max = max(1, ...array_map(static fn($r): int => (int) $r['scans'], $series)); $html = '<div class="qrb-bars">'; foreach ($series as $row) { $height = max(4, (int) round(((int) $row['scans'] / $max) * 90)); $html .= '<span title="' . esc_attr($row['date'] . ': ' . $row['scans']) . '" style="height:' . esc_attr((string) $height) . 'px"></span>'; } return $html . '</div>'; }
+    private function breakdownTable(array $rows): string { if (!$rows) { return '<p>No data yet.</p>'; } $html = '<table class="qrb-table"><tbody>'; foreach ($rows as $row) { $html .= '<tr><td>' . esc_html((string) $row['label']) . '</td><td>' . esc_html((string) $row['count']) . '</td></tr>'; } return $html . '</tbody></table>'; }
+    private function recentScansTable(array $rows): string { if (!$rows) { return '<p>No scans yet.</p>'; } $html = '<table class="qrb-table"><thead><tr><th>When</th><th>Referrer</th><th>User agent</th></tr></thead><tbody>'; foreach ($rows as $row) { $html .= '<tr><td>' . esc_html((string) $row->scanned_at) . '</td><td>' . esc_html($row->referrer ?: 'Direct / unknown') . '</td><td>' . esc_html((string) ($row->user_agent_summary ?? 'Unknown')) . '</td></tr>'; } return $html . '</tbody></table>'; }
+    private function topQrTable(array $rows): string { if (!$rows) { return '<p>No scan data yet.</p>'; } $html = '<table class="qrb-table"><thead><tr><th>QR</th><th>Scans</th><th>Last scan</th></tr></thead><tbody>'; foreach ($rows as $row) { $html .= '<tr><td><a href="' . esc_url(home_url('/app/qr/' . $row->id)) . '">' . esc_html($row->name) . '</a></td><td>' . esc_html((string) $row->scan_count) . '</td><td>' . esc_html($row->last_scan ?: '-') . '</td></tr>'; } return $html . '</tbody></table>'; }
 
     private function page(string $title, string $content): void { status_header(200); nocache_headers(); echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . esc_html($title) . '</title>' . $this->styles() . '</head><body class="qrb-body"><main class="qrb-public"><a class="qrb-logo" href="/">QR Buzz</a>' . $content . '</main></body></html>'; exit; }
     private function app(string $title, string $content): void { status_header(200); nocache_headers(); $w = $this->workspaces->current(); echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . esc_html($title) . '</title>' . $this->styles() . '</head><body class="qrb-body"><div class="qrb-shell"><aside><a class="qrb-logo" href="/app/dashboard">QR Buzz</a><nav><a href="/app/dashboard">Dashboard</a><a href="/app/library">Library</a><a href="/app/qr/new">New QR</a><a href="/app/campaigns">Campaigns</a><a href="/app/analytics">Analytics</a><a href="/app/settings/account">Settings</a></nav></aside><div><header><strong>' . esc_html($w->name) . '</strong><nav><a href="/app/settings/billing">Billing</a><a href="/logout">Logout</a></nav></header><main>' . $content . '</main></div></div></body></html>'; exit; }
-    private function styles(): string { return '<style>:root{--qrb-primary:#0f766e;--qrb-accent:#2563eb;--qrb-bg:#f6f7f7;--qrb-surface:#fff;--qrb-border:#dcdcde;--qrb-text:#1d2327;--qrb-muted:#646970;--qrb-radius:6px}body.qrb-body{margin:0;background:var(--qrb-bg);color:var(--qrb-text);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}.qrb-public{max-width:760px;margin:40px auto;padding:24px}.qrb-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}.qrb-shell aside{background:#111827;color:#fff;padding:20px}.qrb-logo{font-weight:700;text-decoration:none;color:inherit;display:block;margin-bottom:20px}.qrb-shell aside a{color:#fff;display:block;padding:9px 0;text-decoration:none}.qrb-shell header{display:flex;justify-content:space-between;align-items:center;background:#fff;border-bottom:1px solid var(--qrb-border);padding:14px 22px}.qrb-shell main{padding:22px}.qrb-card,.qrb-hero{background:var(--qrb-surface);border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:18px;margin:0 0 16px}.qrb-form{display:grid;gap:12px}.qrb-form fieldset{border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:12px}.qrb-form input,.qrb-form select,.qrb-form textarea{display:block;width:100%;max-width:520px;padding:9px;border:1px solid var(--qrb-border);border-radius:4px}.qrb-button{display:inline-block;border:1px solid var(--qrb-border);background:#fff;border-radius:4px;padding:9px 12px;text-decoration:none;color:var(--qrb-text);cursor:pointer}.qrb-button-primary{background:var(--qrb-primary);border-color:var(--qrb-primary);color:#fff}.qrb-actions{display:flex;gap:8px;flex-wrap:wrap}.qrb-page-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.qrb-metrics,.qrb-plan-grid,.qrb-type-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.qrb-type-card-active{border-color:var(--qrb-primary);box-shadow:inset 0 0 0 1px var(--qrb-primary)}.qrb-card span{display:block;color:var(--qrb-muted)}.qrb-card strong{font-size:24px}.qrb-table{width:100%;border-collapse:collapse;background:#fff}.qrb-table th,.qrb-table td{border-bottom:1px solid var(--qrb-border);padding:10px;text-align:left}.qrb-alert{background:#fff7ed;border-left:4px solid #f97316;padding:10px}.qrb-detail{display:grid;grid-template-columns:280px 1fr;gap:20px}.qrb-preview{max-width:260px;height:auto}@media(max-width:780px){.qrb-shell{grid-template-columns:1fr}.qrb-shell aside{position:static}.qrb-shell aside nav{display:flex;gap:10px;overflow:auto}.qrb-detail{grid-template-columns:1fr}}</style>'; }
+    private function styles(): string { return '<style>:root{--qrb-primary:#0f766e;--qrb-accent:#2563eb;--qrb-bg:#f6f7f7;--qrb-surface:#fff;--qrb-border:#dcdcde;--qrb-text:#1d2327;--qrb-muted:#646970;--qrb-radius:6px}body.qrb-body{margin:0;background:var(--qrb-bg);color:var(--qrb-text);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}.qrb-public{max-width:760px;margin:40px auto;padding:24px}.qrb-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}.qrb-shell aside{background:#111827;color:#fff;padding:20px}.qrb-logo{font-weight:700;text-decoration:none;color:inherit;display:block;margin-bottom:20px}.qrb-shell aside a{color:#fff;display:block;padding:9px 0;text-decoration:none}.qrb-shell header{display:flex;justify-content:space-between;align-items:center;background:#fff;border-bottom:1px solid var(--qrb-border);padding:14px 22px}.qrb-shell main{padding:22px}.qrb-card,.qrb-hero{background:var(--qrb-surface);border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:18px;margin:0 0 16px}.qrb-form{display:grid;gap:12px}.qrb-form fieldset{border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:12px;display:grid;gap:10px}.qrb-form input,.qrb-form select,.qrb-form textarea{display:block;width:100%;max-width:560px;padding:9px;border:1px solid var(--qrb-border);border-radius:4px}.qrb-button{display:inline-block;border:1px solid var(--qrb-border);background:#fff;border-radius:4px;padding:9px 12px;text-decoration:none;color:var(--qrb-text);cursor:pointer}.qrb-button-primary{background:var(--qrb-primary);border-color:var(--qrb-primary);color:#fff}.qrb-actions{display:flex;gap:8px;flex-wrap:wrap}.qrb-page-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.qrb-metrics,.qrb-plan-grid,.qrb-type-grid,.qrb-analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.qrb-card span{display:block;color:var(--qrb-muted)}.qrb-card strong{font-size:24px}.qrb-table{width:100%;border-collapse:collapse;background:#fff}.qrb-table th,.qrb-table td{border-bottom:1px solid var(--qrb-border);padding:10px;text-align:left}.qrb-alert{background:#fff7ed;border-left:4px solid #f97316;padding:10px}.qrb-detail,.qrb-studio{display:grid;grid-template-columns:280px 1fr;gap:20px}.qrb-preview{max-width:260px;height:auto}.qrb-studio-preview{align-self:start;position:sticky;top:16px}.qrb-bars{height:110px;display:flex;align-items:end;gap:3px;border-bottom:1px solid var(--qrb-border);padding-top:10px}.qrb-bars span{display:block;flex:1;background:var(--qrb-primary);min-width:4px}@media(max-width:780px){.qrb-shell{grid-template-columns:1fr}.qrb-shell aside{position:static}.qrb-shell aside nav{display:flex;gap:10px;overflow:auto}.qrb-detail,.qrb-studio{grid-template-columns:1fr}.qrb-studio-preview{position:static}}</style>'; }
     private function path(): string { return trim(parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH), '/'); }
     private function redirect(string $path): void { wp_safe_redirect(str_starts_with($path, 'http') ? $path : home_url($path)); exit; }
     private function rateLimited(string $scope): bool { $key = 'qrbuzz_' . $scope . '_' . md5((string) ($_SERVER['REMOTE_ADDR'] ?? '')); $count = (int) get_transient($key); set_transient($key, $count + 1, 10 * MINUTE_IN_SECONDS); return $count > 12; }
