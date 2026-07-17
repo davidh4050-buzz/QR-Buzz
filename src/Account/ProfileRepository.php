@@ -21,6 +21,12 @@ class ProfileRepository {
         $wpdb->update(Schema::profilesTable(), ['verification_token_hash' => hash('sha256', $token), 'verification_sent_at' => current_time('mysql'), 'updated_at' => current_time('mysql')], ['user_id' => $userId], ['%s','%s','%s'], ['%d']);
     }
 
+    public function markEmailUnverified(int $userId): void {
+        global $wpdb;
+        $this->ensure($userId);
+        $wpdb->update(Schema::profilesTable(), ['email_verified' => 0, 'verification_token_hash' => null, 'updated_at' => current_time('mysql')], ['user_id' => $userId], ['%d','%s','%s'], ['%d']);
+    }
+
     public function verifyByToken(int $userId, string $token): bool {
         global $wpdb;
         $profile = $this->profile($userId);
