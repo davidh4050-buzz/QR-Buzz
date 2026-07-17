@@ -81,14 +81,27 @@ class StripeService {
     }
 
     private function handleSubscription(array $subscription): void {
-        $workspaceId = absint($subscription['metadata']['workspace_id'] ?? 0); if (!$workspaceId) { return; }
-        $planKey = sanitize_key((string) ($subscription['metadata']['plan_key'] ?? 'pro'));
+        $workspaceId = absint($subscription['metadata']['workspace_id'] ?? 0);
+        $existing = !empty($subscription['id']) ? $this->subscriptions->byStripeSubscription((string) $subscription['id']) : null;
+        if (!$workspaceId && $existing) { $workspaceId = (int) $existing->workspace_id; }
+        if (!$workspaceId) { return; }
+        $planKey = sanitize_key((string) ($subscription['metadata']['plan_key'] ?? ($existing ? $existing->plan_key : 'pro')));
         $status = sanitize_key((string) ($subscription['status'] ?? 'active'));
-        $this->subscriptions->upsert($workspaceId, ['plan_key' => $planKey, 'status' => $status, 'stripe_customer_id' => (string) ($subscription['customer'] ?? ''), 'stripe_subscription_id' => (string) ($subscription['id'] ?? ''), 'current_period_start' => $this->dateFromTimestamp($subscription['current_period_start'] ?? null), 'current_period_end' => $this->dateFromTimestamp($subscription['current_period_end'] ?? null), 'cancel_at_period_end' => !empty($subscription['cancel_at_period_end'])]);
+        $this->subscriptions->upsert($workspaceId, ['plan_key' => $planKey, 'status' => $status, 'stripe_customer_id' => (string) ($subscription['customer'] ?? ($existing ? $existing->stripe_customer_id : '')), 'stripe_subscription_id' => (string) ($subscription['id'] ?? ''), 'current_period_start' => $this->dateFromTimestamp($subscription['current_period_start'] ?? null), 'current_period_end' => $this->dateFromTimestamp($subscription['current_period_end'] ?? null), 'cancel_at_period_end' => !empty($subscription['cancel_at_period_end'])]);
         $this->workspaces->updatePlan($workspaceId, in_array($status, ['trialing', 'active'], true) ? $planKey : 'free');
     }
 
-    private function handleInvoiceState(array $invoice, string $status): void { $subscriptionId = (string) ($invoice['subscription'] ?? ''); if (!$subscriptionId) { return; } }
+    private function handleInvoiceState(array $invoice, string $status): void {
+        $subscriptionId = (string) ($invoice['subscription'] ?? '');
+        if (!$subscriptionId) { return; }
+        $existing = $this->subscriptions->byStripeSubscription($subscriptionId);
+        if (!$existing) { return; }
+        $planKey = (string) $existing->plan_key;
+        $workspaceId = (int) $existing->workspace_id;
+        $this->subscriptions->upsert($workspaceId, ['plan_key' => $planKey, 'status' => $status, 'stripe_subscription_id' => $subscriptionId]);
+        $this->workspaces->updatePlan($workspaceId, in_array($status, ['trialing', 'active'], true) ? $planKey : 'free');
+    }
+
     private function dateFromTimestamp($timestamp): ?string { return $timestamp ? gmdate('Y-m-d H:i:s', (int) $timestamp) : null; }
     private function secretKey(): string { return defined('QR_BUZZ_STRIPE_SECRET_KEY') ? (string) QR_BUZZ_STRIPE_SECRET_KEY : (string) getenv('QR_BUZZ_STRIPE_SECRET_KEY'); }
     private function webhookSecret(): string { return defined('QR_BUZZ_STRIPE_WEBHOOK_SECRET') ? (string) QR_BUZZ_STRIPE_WEBHOOK_SECRET : (string) getenv('QR_BUZZ_STRIPE_WEBHOOK_SECRET'); }
