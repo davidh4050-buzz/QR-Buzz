@@ -237,7 +237,7 @@ class HostedAppController {
         $design = $qr ? QRDesignSettings::fromQrCode($qr) : $this->newDesignDefaults();
         $title = $qr ? 'Edit QR' : 'New QR';
         $action = $qr ? home_url('/app/qr/' . $qr->id . '/studio') : home_url('/app/qr/new');
-        return '<div class="qrb-page-head"><h1>QR Studio</h1><a class="qrb-button" href="/app/qr/new">Change type</a></div>' . (!empty($_GET['error']) ? '<p class="qrb-alert">Please check the QR details and try again.</p>' : '') . '<div class="qrb-studio"><aside class="qrb-card qrb-studio-preview"><h2>Preview</h2>' . $this->studioPreview($qr, $type, $payload, $design) . '</aside><form class="qrb-card qrb-form" method="post" action="' . esc_url($action) . '">' . wp_nonce_field('qrbuzz_app_qr', 'nonce', true, false) . '<h2>' . esc_html($title) . '</h2>' . $this->studioContentFields($qr, $type, $payload) . $this->studioDesignFields($design) . '<button class="qrb-button qrb-button-primary">' . esc_html($qr ? 'Update QR Code' : 'Create QR Code') . '</button></form></div>';
+        return '<div class="qrb-page-head"><h1>QR Studio</h1><a class="qrb-button" href="/app/qr/new">Change type</a></div>' . (!empty($_GET['error']) ? '<p class="qrb-alert">Please check the QR details and try again.</p>' : '') . '<div class="qrb-studio"><aside class="qrb-card qrb-studio-preview"><h2>Preview</h2>' . $this->studioPreview($qr, $type, $payload, $design) . '</aside><form class="qrb-card qrb-form qrb-studio-form" method="post" action="' . esc_url($action) . '">' . wp_nonce_field('qrbuzz_app_qr', 'nonce', true, false) . '<input type="hidden" name="qr_id" value="' . esc_attr($qr ? $qr->id : 0) . '"><h2>' . esc_html($title) . '</h2>' . $this->studioContentFields($qr, $type, $payload) . $this->studioDesignFields($design) . '<button class="qrb-button qrb-button-primary">' . esc_html($qr ? 'Update QR Code' : 'Create QR Code') . '</button></form></div>';
     }
 
     private function studioContentFields(?QRCode $qr, string $type, array $payload): string {
@@ -263,18 +263,20 @@ class HostedAppController {
     }
 
     private function studioDesignFields(QRDesignSettings $design): string {
-        $html = '<fieldset><legend>Design</legend><label>Theme<select name="theme">';
-        foreach ($this->themes->all() as $key => $theme) { $html .= '<option value="' . esc_attr($key) . '" ' . selected($design->theme, $key, false) . '>' . esc_html($theme['label']) . '</option>'; }
+        $html = '<fieldset><legend>Design</legend><label>Theme<select name="theme" class="qrb-theme-select">';
+        foreach ($this->themes->all() as $key => $theme) { $settings = $this->themes->designSettings((string) $key); $html .= '<option value="' . esc_attr($key) . '" ' . selected($design->theme, $key, false) . ' data-foreground="' . esc_attr($settings->foregroundColor) . '" data-background="' . esc_attr($settings->backgroundColor) . '" data-margin="' . esc_attr((string) $settings->margin) . '" data-error="' . esc_attr($settings->errorCorrection) . '">' . esc_html($theme['label']) . '</option>'; }
         $html .= '</select></label>' . $this->input('Foreground colour', 'foreground_color', $design->foregroundColor, 'color') . $this->input('Background colour', 'background_color', $design->backgroundColor, 'color') . '<label><input type="checkbox" name="transparent_background" value="1" ' . checked($design->transparentBackground, true, false) . '> Transparent background</label><label>Error correction<select name="error_correction">';
         foreach (['L'=>'L - smallest','M'=>'M - balanced','Q'=>'Q - branded','H'=>'H - logo safe'] as $value => $label) { $html .= '<option value="' . esc_attr($value) . '" ' . selected($design->errorCorrection, $value, false) . '>' . esc_html($label) . '</option>'; }
         $logoNote = $this->entitlements->allows('logo_embedding') ? '' : '<p class="qrb-alert">Logo embedding is available on Pro and Business plans.</p>';
-        return $html . '</select></label>' . $this->input('Quiet zone / margin', 'margin', (string) $design->margin, 'number') . $this->input('Logo attachment ID', 'logo_attachment_id', $this->entitlements->allows('logo_embedding') ? (string) $design->logoAttachmentId : '0', 'number') . $this->input('Logo size (%)', 'logo_size', (string) $design->logoSize, 'number') . $logoNote . '</fieldset>';
+        return $html . '</select></label>' . $this->input('Quiet zone / margin', 'margin', (string) $design->margin, 'number') . $this->logoField($design) . $this->input('Logo size (%)', 'logo_size', (string) $design->logoSize, 'number') . $logoNote . '</fieldset>';
     }
 
     private function studioPreview(?QRCode $qr, string $type, array $payload, QRDesignSettings $design): string {
         $data = $qr ? $this->payloads->payloadForQrCode($qr) : $this->payloads->build($type, $payload);
-        if (!$data || !$this->payloads->isPayloadValid($type, $data)) { return '<p>Add content, save, and the preview will appear here.</p>'; }
-        try { return '<img class="qrb-preview" src="' . esc_attr($this->generator->generatePngDataUri($data, 260, $design)) . '" alt="">'; } catch (\Throwable $e) { return '<p class="qrb-alert">Preview could not be generated.</p>'; }
+        $html = '<div class="qrb-live-preview">';
+        if (!$data || !$this->payloads->isPayloadValid($type, $data)) { $html .= '<p>Add content, save, and the preview will appear here.</p>'; }
+        else { try { $html .= '<img class="qrb-preview" src="' . esc_attr($this->generator->generatePngDataUri($data, 260, $design)) . '" alt="">'; } catch (\Throwable $e) { $html .= '<p class="qrb-alert">Preview could not be generated.</p>'; } }
+        return $html . '</div><p class="qrb-preview-status">Preview updates as you change content and design.</p><button type="button" class="qrb-button qrb-refresh-preview">Refresh Preview</button>';
     }
 
     private function qrDetail(int $id): string {
@@ -338,6 +340,7 @@ class HostedAppController {
     private function downloadUrl(int $id, string $format): string { return wp_nonce_url(home_url('/app/qr/' . $id . '/download/' . $format), 'qrbuzz_app_download_' . $id); }
     private function input(string $label, string $name, string $value, string $type = 'text'): string { return '<label>' . esc_html($label) . '<input type="' . esc_attr($type) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"></label>'; }
     private function textarea(string $label, string $name, string $value): string { return '<label>' . esc_html($label) . '<textarea name="' . esc_attr($name) . '">' . esc_textarea($value) . '</textarea></label>'; }
+    private function logoField(QRDesignSettings $design): string { $allowed = $this->entitlements->allows('logo_embedding'); $image = $allowed && $design->logoAttachmentId ? wp_get_attachment_image($design->logoAttachmentId, 'thumbnail') : ''; return '<label>Logo<input type="hidden" class="qrb-logo-id" name="logo_attachment_id" value="' . esc_attr($allowed ? (string) $design->logoAttachmentId : '0') . '"><span class="qrb-logo-actions"><button type="button" class="qrb-button qrb-select-logo" ' . disabled(!$allowed, true, false) . '>Choose logo</button><button type="button" class="qrb-button qrb-remove-logo" ' . disabled(!$allowed || !$design->logoAttachmentId, true, false) . '>Remove logo</button></span><span class="qrb-logo-preview">' . wp_kses_post($image) . '</span></label>'; }
     private function newDesignDefaults(): QRDesignSettings { $design = $this->brandKit->designDefaults(); $design->logoAttachmentId = 0; return $design; }
     private function optionalUrl(string $field): ?string { $url = esc_url_raw((string) ($_POST[$field] ?? '')); return trim($url) === '' ? null : $url; }
     private function optionalDateTime(string $field): ?string { $value = sanitize_text_field((string) ($_POST[$field] ?? '')); if ($value === '') { return null; } $timestamp = strtotime($value, current_time('timestamp')); return $timestamp ? gmdate('Y-m-d H:i:s', $timestamp) : null; }
@@ -347,9 +350,95 @@ class HostedAppController {
     private function recentScansTable(array $rows): string { if (!$rows) { return '<p>No scans yet.</p>'; } $html = '<table class="qrb-table"><thead><tr><th>When</th><th>Referrer</th><th>User agent</th></tr></thead><tbody>'; foreach ($rows as $row) { $html .= '<tr><td>' . esc_html((string) $row->scanned_at) . '</td><td>' . esc_html($row->referrer ?: 'Direct / unknown') . '</td><td>' . esc_html((string) ($row->user_agent_summary ?? 'Unknown')) . '</td></tr>'; } return $html . '</tbody></table>'; }
     private function topQrTable(array $rows): string { if (!$rows) { return '<p>No scan data yet.</p>'; } $html = '<table class="qrb-table"><thead><tr><th>QR</th><th>Scans</th><th>Last scan</th></tr></thead><tbody>'; foreach ($rows as $row) { $html .= '<tr><td><a href="' . esc_url(home_url('/app/qr/' . $row->id)) . '">' . esc_html($row->name) . '</a></td><td>' . esc_html((string) $row->scan_count) . '</td><td>' . esc_html($row->last_scan ?: '-') . '</td></tr>'; } return $html . '</tbody></table>'; }
 
+    private function enqueueAppAssets(): void { if (current_user_can('upload_files')) { wp_enqueue_media(); } }
+    private function headAssets(): string { ob_start(); wp_print_styles(); wp_print_head_scripts(); return (string) ob_get_clean(); }
+    private function footerAssets(): string { ob_start(); wp_print_footer_scripts(); if (function_exists('wp_print_media_templates')) { wp_print_media_templates(); } return (string) ob_get_clean(); }
+    private function appScripts(): string {
+        $config = [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'previewNonce' => wp_create_nonce('qrbuzz_preview'),
+            'canUseMedia' => current_user_can('upload_files'),
+        ];
+        return '<script>window.QRBuzzApp=' . wp_json_encode($config) . ';</script><script>
+(function(){
+    function qs(selector, root){ return (root || document).querySelector(selector); }
+    function qsa(selector, root){ return Array.prototype.slice.call((root || document).querySelectorAll(selector)); }
+    function refreshPreview(){
+        var form = qs(".qrb-studio-form");
+        var target = qs(".qrb-live-preview");
+        var status = qs(".qrb-preview-status");
+        if (!form || !target || !window.QRBuzzApp) { return; }
+        var data = new FormData(form);
+        data.set("action", "qrbuzz_preview");
+        data.set("nonce", window.QRBuzzApp.previewNonce);
+        if (status) { status.textContent = "Refreshing preview..."; }
+        fetch(window.QRBuzzApp.ajaxUrl, { method: "POST", credentials: "same-origin", body: data })
+            .then(function(response){ return response.json(); })
+            .then(function(result){
+                if (result.success && result.data && result.data.data_uri) {
+                    target.innerHTML = "<img class=\"qrb-preview\" src=\"" + result.data.data_uri + "\" alt=\"\">";
+                    if (status) { status.textContent = result.data.message || "Preview refreshed."; }
+                    return;
+                }
+                target.innerHTML = "<p>" + (result.data && result.data.message ? result.data.message : "Preview unavailable.") + "</p>";
+                if (status) { status.textContent = "Preview could not be generated."; }
+            })
+            .catch(function(){ if (status) { status.textContent = "Preview could not be generated."; } });
+    }
+    function schedulePreview(){ clearTimeout(window.qrbuzzHostedPreviewTimer); window.qrbuzzHostedPreviewTimer = setTimeout(refreshPreview, 450); }
+    document.addEventListener("click", function(event){
+        var refresh = event.target.closest(".qrb-refresh-preview");
+        if (refresh) { event.preventDefault(); refreshPreview(); }
+        var selectLogo = event.target.closest(".qrb-select-logo");
+        if (selectLogo) {
+            event.preventDefault();
+            if (!window.wp || !wp.media) { return; }
+            var wrap = selectLogo.closest("label");
+            var field = qs(".qrb-logo-id", wrap);
+            var preview = qs(".qrb-logo-preview", wrap);
+            var remove = qs(".qrb-remove-logo", wrap);
+            var frame = wp.media({ title: "Choose QR logo", button: { text: "Use this logo" }, multiple: false, library: { type: "image" } });
+            frame.on("select", function(){
+                var attachment = frame.state().get("selection").first().toJSON();
+                field.value = attachment.id;
+                preview.innerHTML = "<img src=\"" + ((attachment.sizes && attachment.sizes.thumbnail) ? attachment.sizes.thumbnail.url : attachment.url) + "\" alt=\"\">";
+                if (remove) { remove.disabled = false; }
+                schedulePreview();
+            });
+            frame.open();
+        }
+        var removeLogo = event.target.closest(".qrb-remove-logo");
+        if (removeLogo) {
+            event.preventDefault();
+            var logoWrap = removeLogo.closest("label");
+            qs(".qrb-logo-id", logoWrap).value = "0";
+            qs(".qrb-logo-preview", logoWrap).innerHTML = "";
+            removeLogo.disabled = true;
+            schedulePreview();
+        }
+    });
+    document.addEventListener("change", function(event){
+        if (!event.target.closest(".qrb-studio-form")) { return; }
+        if (event.target.classList.contains("qrb-theme-select")) {
+            var option = event.target.selectedOptions[0];
+            var form = event.target.closest("form");
+            if (option && form) {
+                qs("[name=foreground_color]", form).value = option.dataset.foreground || "#000000";
+                qs("[name=background_color]", form).value = option.dataset.background || "#ffffff";
+                qs("[name=margin]", form).value = option.dataset.margin || "12";
+                qs("[name=error_correction]", form).value = option.dataset.error || "H";
+            }
+        }
+        schedulePreview();
+    });
+    document.addEventListener("input", function(event){ if (event.target.closest(".qrb-studio-form")) { schedulePreview(); } });
+    window.qrbuzzRefreshPreview = refreshPreview;
+})();</script>';
+    }
+
     private function page(string $title, string $content): void { status_header(200); nocache_headers(); echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . esc_html($title) . '</title>' . $this->styles() . '</head><body class="qrb-body"><main class="qrb-public"><a class="qrb-logo" href="/">QR Buzz</a>' . $content . '</main></body></html>'; exit; }
-    private function app(string $title, string $content): void { status_header(200); nocache_headers(); $w = $this->workspaces->current(); echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . esc_html($title) . '</title>' . $this->styles() . '</head><body class="qrb-body"><div class="qrb-shell"><aside><a class="qrb-logo" href="/app/dashboard">QR Buzz</a><nav><a href="/app/dashboard">Dashboard</a><a href="/app/library">Library</a><a href="/app/qr/new">New QR</a><a href="/app/campaigns">Campaigns</a><a href="/app/analytics">Analytics</a><a href="/app/settings/account">Settings</a></nav></aside><div><header><strong>' . esc_html($w->name) . '</strong><nav><a href="/app/settings/billing">Billing</a><a href="/logout">Logout</a></nav></header><main>' . $content . '</main></div></div></body></html>'; exit; }
-    private function styles(): string { return '<style>:root{--qrb-primary:#0f766e;--qrb-accent:#2563eb;--qrb-bg:#f6f7f7;--qrb-surface:#fff;--qrb-border:#dcdcde;--qrb-text:#1d2327;--qrb-muted:#646970;--qrb-radius:6px}body.qrb-body{margin:0;background:var(--qrb-bg);color:var(--qrb-text);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}.qrb-public{max-width:760px;margin:40px auto;padding:24px}.qrb-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}.qrb-shell aside{background:#111827;color:#fff;padding:20px}.qrb-logo{font-weight:700;text-decoration:none;color:inherit;display:block;margin-bottom:20px}.qrb-shell aside a{color:#fff;display:block;padding:9px 0;text-decoration:none}.qrb-shell header{display:flex;justify-content:space-between;align-items:center;background:#fff;border-bottom:1px solid var(--qrb-border);padding:14px 22px}.qrb-shell main{padding:22px}.qrb-card,.qrb-hero{background:var(--qrb-surface);border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:18px;margin:0 0 16px}.qrb-form{display:grid;gap:12px}.qrb-form fieldset{border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:12px;display:grid;gap:10px}.qrb-form input,.qrb-form select,.qrb-form textarea{display:block;width:100%;max-width:560px;padding:9px;border:1px solid var(--qrb-border);border-radius:4px}.qrb-button{display:inline-block;border:1px solid var(--qrb-border);background:#fff;border-radius:4px;padding:9px 12px;text-decoration:none;color:var(--qrb-text);cursor:pointer}.qrb-button-primary{background:var(--qrb-primary);border-color:var(--qrb-primary);color:#fff}.qrb-actions{display:flex;gap:8px;flex-wrap:wrap}.qrb-page-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.qrb-metrics,.qrb-plan-grid,.qrb-type-grid,.qrb-analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.qrb-card span{display:block;color:var(--qrb-muted)}.qrb-card strong{font-size:24px}.qrb-table{width:100%;border-collapse:collapse;background:#fff}.qrb-table th,.qrb-table td{border-bottom:1px solid var(--qrb-border);padding:10px;text-align:left}.qrb-alert{background:#fff7ed;border-left:4px solid #f97316;padding:10px}.qrb-detail,.qrb-studio{display:grid;grid-template-columns:280px 1fr;gap:20px}.qrb-preview{max-width:260px;height:auto}.qrb-studio-preview{align-self:start;position:sticky;top:16px}.qrb-bars{height:110px;display:flex;align-items:end;gap:3px;border-bottom:1px solid var(--qrb-border);padding-top:10px}.qrb-bars span{display:block;flex:1;background:var(--qrb-primary);min-width:4px}@media(max-width:780px){.qrb-shell{grid-template-columns:1fr}.qrb-shell aside{position:static}.qrb-shell aside nav{display:flex;gap:10px;overflow:auto}.qrb-detail,.qrb-studio{grid-template-columns:1fr}.qrb-studio-preview{position:static}}</style>'; }
+    private function app(string $title, string $content): void { status_header(200); nocache_headers(); $this->enqueueAppAssets(); $w = $this->workspaces->current(); echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . esc_html($title) . '</title>' . $this->styles() . $this->headAssets() . '</head><body class="qrb-body"><div class="qrb-shell"><aside><a class="qrb-logo" href="/app/dashboard">QR Buzz</a><nav><a href="/app/dashboard">Dashboard</a><a href="/app/library">Library</a><a href="/app/qr/new">New QR</a><a href="/app/campaigns">Campaigns</a><a href="/app/analytics">Analytics</a><a href="/app/settings/account">Settings</a></nav></aside><div><header><strong>' . esc_html($w->name) . '</strong><nav><a href="/app/settings/billing">Billing</a><a href="/logout">Logout</a></nav></header><main>' . $content . '</main></div></div>' . $this->appScripts() . $this->footerAssets() . '</body></html>'; exit; }
+    private function styles(): string { return '<style>:root{--qrb-primary:#0f766e;--qrb-accent:#2563eb;--qrb-bg:#f6f7f7;--qrb-surface:#fff;--qrb-border:#dcdcde;--qrb-text:#1d2327;--qrb-muted:#646970;--qrb-radius:6px}body.qrb-body{margin:0;background:var(--qrb-bg);color:var(--qrb-text);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}.qrb-public{max-width:760px;margin:40px auto;padding:24px}.qrb-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}.qrb-shell aside{background:#111827;color:#fff;padding:20px}.qrb-logo{font-weight:700;text-decoration:none;color:inherit;display:block;margin-bottom:20px}.qrb-shell aside a{color:#fff;display:block;padding:9px 0;text-decoration:none}.qrb-shell header{display:flex;justify-content:space-between;align-items:center;background:#fff;border-bottom:1px solid var(--qrb-border);padding:14px 22px}.qrb-shell main{padding:22px}.qrb-card,.qrb-hero{background:var(--qrb-surface);border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:18px;margin:0 0 16px}.qrb-form{display:grid;gap:12px}.qrb-form fieldset{border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:12px;display:grid;gap:10px}.qrb-form input,.qrb-form select,.qrb-form textarea{display:block;width:100%;max-width:560px;padding:9px;border:1px solid var(--qrb-border);border-radius:4px}.qrb-form input[type=color]{width:70px;height:42px;max-width:70px;padding:3px;cursor:pointer}.qrb-logo-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.qrb-logo-preview{display:block;margin-top:8px}.qrb-logo-preview img{max-width:72px;height:auto;border:1px solid var(--qrb-border);background:#fff}.qrb-preview-status{color:var(--qrb-muted);margin:10px 0}.qrb-button{display:inline-block;border:1px solid var(--qrb-border);background:#fff;border-radius:4px;padding:9px 12px;text-decoration:none;color:var(--qrb-text);cursor:pointer}.qrb-button-primary{background:var(--qrb-primary);border-color:var(--qrb-primary);color:#fff}.qrb-actions{display:flex;gap:8px;flex-wrap:wrap}.qrb-page-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.qrb-metrics,.qrb-plan-grid,.qrb-type-grid,.qrb-analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.qrb-card span{display:block;color:var(--qrb-muted)}.qrb-card strong{font-size:24px}.qrb-table{width:100%;border-collapse:collapse;background:#fff}.qrb-table th,.qrb-table td{border-bottom:1px solid var(--qrb-border);padding:10px;text-align:left}.qrb-alert{background:#fff7ed;border-left:4px solid #f97316;padding:10px}.qrb-detail,.qrb-studio{display:grid;grid-template-columns:280px 1fr;gap:20px}.qrb-preview{max-width:260px;height:auto}.qrb-studio-preview{align-self:start;position:sticky;top:16px}.qrb-bars{height:110px;display:flex;align-items:end;gap:3px;border-bottom:1px solid var(--qrb-border);padding-top:10px}.qrb-bars span{display:block;flex:1;background:var(--qrb-primary);min-width:4px}@media(max-width:780px){.qrb-shell{grid-template-columns:1fr}.qrb-shell aside{position:static}.qrb-shell aside nav{display:flex;gap:10px;overflow:auto}.qrb-detail,.qrb-studio{grid-template-columns:1fr}.qrb-studio-preview{position:static}}</style>'; }
     private function path(): string { return trim(parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH), '/'); }
     private function redirect(string $path): void { wp_safe_redirect(str_starts_with($path, 'http') ? $path : home_url($path)); exit; }
     private function rateLimited(string $scope): bool { $key = 'qrbuzz_' . $scope . '_' . md5((string) ($_SERVER['REMOTE_ADDR'] ?? '')); $count = (int) get_transient($key); set_transient($key, $count + 1, 10 * MINUTE_IN_SECONDS); return $count > 12; }

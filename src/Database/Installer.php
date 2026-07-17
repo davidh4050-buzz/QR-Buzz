@@ -241,6 +241,10 @@ class Installer {
 
     public static function registerRoles(): void {
         add_role('qrbuzz_customer', 'QR Buzz Customer', ['read' => true]);
+        $role = get_role('qrbuzz_customer');
+        if ($role) {
+            $role->add_cap('upload_files');
+        }
     }
 
     public static function ensureDefaultWorkspace(): int { return (new WorkspaceRepository())->createDefault(); }
