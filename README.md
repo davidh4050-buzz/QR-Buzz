@@ -1,8 +1,8 @@
 # QR Buzz
 
-QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, campaigns, smart destinations, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
+QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, campaigns, smart destinations, hosted accounts, subscriptions, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
 
-v0.9.0 is the Platform Foundations release. QR Buzz now has a default workspace model, local plan/entitlement architecture, workspace-scoped data access, internal REST API endpoints, CSV exports, and diagnostics. This release does not add billing, public registration, subscriptions, or external licensing.
+v0.9.5 is the Hosted Accounts, Onboarding and Subscription Prototype release. It adds the first customer-facing QR Buzz app experience on WordPress-powered hosted routes while preserving the existing WordPress admin plugin experience.
 
 ## Dynamic vs Static QR Codes
 
@@ -31,56 +31,70 @@ If you download a GitHub Actions artifact, unzip that download first. The artifa
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
 
-## Features in v0.9.0
+## Features in v0.9.5
 
-- Default workspace ownership foundation for QR assets, campaigns, Smart Destination rules, Brand Kit settings, and analytics queries
-- Workspace-scoped database upgrade/backfill for existing v0.8.0 installs
-- Local Free, Pro, and Business plan registry for development and testing
-- Entitlement and usage services for plan features and limits
-- Workspace & Plan admin area with local plan switching, usage cards, feature availability, and export actions
-- Diagnostics admin area for support-friendly system information without secrets, tokens, raw IP addresses, or personal scan data
-- CSV exports for QR assets and campaigns on entitled plans
-- Internal REST API namespace: `qr-buzz/v1`
-- REST endpoints for workspace metadata, entitlements, usage, assets, campaigns, analytics, per-QR analytics, campaign analytics, and Brand Kit data
-- Workspace-aware Brand Kit options with fallback to existing v0.8 settings
-- Release workflow support for the v0.9 branch
+- Hosted frontend routes for `/pricing`, `/register`, `/login`, `/forgot-password`, `/verify-email`, `/logout`, and authenticated `/app/*` pages
+- QR Buzz Customer WordPress role for normal hosted users
+- Registration, login, password reset, email verification, account settings, workspace settings, and billing settings
+- Workspace membership and user profile tables for hosted account state and future team support
+- Workspace onboarding flow: choose plan, set workspace details, create first QR or skip to dashboard
+- Hosted app shell with dashboard, library, new QR, QR detail, campaigns, analytics, account settings, workspace settings, and billing
+- Hosted QR creation for dynamic URL, static URL, WiFi, business card, email, phone, SMS, location, and text QR types
+- Customer-side QR preview plus PNG/SVG downloads from the hosted QR detail page
+- Subscription table and Stripe webhook event table for local billing state and idempotent event handling
+- Stripe test-mode checkout scaffolding for Pro and Business plans
+- Webhook handling for checkout completion, subscription updates, invoice paid, and invoice payment failed events
+- Conservative entitlement policy: active or trialing subscriptions receive paid-plan access; incomplete, failed, cancelled, or expired subscriptions fall back to Free access
+- Backward-compatible upgrade path for existing v0.9.0 workspaces, QR codes, campaigns, brand kit settings, smart destinations, and analytics
 
-## Plan Notes
+## Hosted App Routes
 
-v0.9.0 introduces plan architecture only. Plans are assigned locally from **QR Buzz -> Workspace & Plan** so the feature set can be tested before real subscriptions are added later.
+Public routes:
 
-The default Free plan is intentionally limited. Logo embedding, advanced branding, Smart Destination rules, CSV export, and API access are available on higher local plans. Existing data is preserved during upgrade, but some editing actions may be blocked until the workspace is switched to a plan that includes the relevant capability.
+- `/pricing`
+- `/register`
+- `/login`
+- `/forgot-password`
+- `/verify-email`
+- `/logout`
 
-## REST API
+Authenticated routes:
 
-The internal API is registered under `qr-buzz/v1`. All endpoints require an authenticated WordPress administrator. Asset, campaign, and analytics endpoints also require the `api_access` entitlement.
+- `/app/dashboard`
+- `/app/onboarding`
+- `/app/library`
+- `/app/qr/new`
+- `/app/qr/{id}`
+- `/app/qr/{id}/download/png`
+- `/app/qr/{id}/download/svg`
+- `/app/campaigns`
+- `/app/analytics`
+- `/app/settings/account`
+- `/app/settings/workspace`
+- `/app/settings/billing`
 
-Useful endpoints include:
+The hosted app is rendered by the plugin and does not require normal customers to use WordPress admin.
 
-- `/wp-json/qr-buzz/v1/workspace`
-- `/wp-json/qr-buzz/v1/workspace/entitlements`
-- `/wp-json/qr-buzz/v1/workspace/usage`
-- `/wp-json/qr-buzz/v1/assets`
-- `/wp-json/qr-buzz/v1/assets/{id}/analytics`
-- `/wp-json/qr-buzz/v1/campaigns`
-- `/wp-json/qr-buzz/v1/campaigns/{id}/analytics`
-- `/wp-json/qr-buzz/v1/analytics/summary`
-- `/wp-json/qr-buzz/v1/brand-kit`
+## Stripe Test Mode
 
-See `docs/rest-api.md` for more detail.
+Stripe is test-mode only in v0.9.5.
+
+Configure with constants or environment variables:
+
+- `QR_BUZZ_STRIPE_SECRET_KEY`
+- `QR_BUZZ_STRIPE_WEBHOOK_SECRET`
+- `QR_BUZZ_STRIPE_PRO_PRICE_ID`
+- `QR_BUZZ_STRIPE_BUSINESS_PRICE_ID`
+
+Webhook endpoint:
+
+`/wp-json/qr-buzz/v1/billing/stripe-webhook`
 
 ## QR Design Notes
 
 QR Buzz uses the bundled `endroid/qr-code` library for local QR rendering. QR Buzz supports reliable brand styling such as colours, transparent backgrounds, margin control, error correction, and logos.
 
 Advanced visual QR artwork, such as custom rounded modules, custom eye patterns, gradients, and complex designer module shapes, is intentionally not included yet. The current focus is branded, readable QR codes that remain suitable for real-world printing and scanning.
-
-## Logo Recommendations
-
-- Use high error correction when adding a logo.
-- Keep logo size modest, usually 10% to 25% of the QR image width.
-- Test QR codes before printing or distributing them.
-- PNG logo embedding supports raster image formats. SVG QR output remains available, but logo embedding can vary by uploaded image format and scanner compatibility.
 
 ## QR Types
 
@@ -108,37 +122,15 @@ Resolver order:
 4. Legacy scheduled destination fallback, if present
 5. Primary destination URL
 
-v0.7.0 introduced date ranges, days of the week, and time-of-day windows. Geo, device, referrer, language, A/B testing, and campaign automation rules are intentionally left for later releases.
-
 ## Campaigns
 
 Campaigns organise QR codes around marketing activity. A QR code can belong to zero or one campaign. Campaign analytics are based on assigned dynamic QR codes because static QR codes do not use QR Buzz tracking.
-
-Campaigns can be active or archived. Campaigns can only be deleted when no QR codes are assigned to them.
-
-## Dynamic Destination Features
-
-- Edit a QR code destination without changing the shortcode, tracking URL, or printed QR image
-- Active and paused QR states, with expired state resolved from optional expiry time
-- Optional fallback URL for paused, expired, or unavailable destinations
-- Optional expiry date/time per QR code
-- Legacy/simple scheduled destination window per QR code
-- Smart Destination rule engine for time-based routing
-- Destination simulator on the QR edit screen
-- Destination and rule history
-- Central destination resolver for primary, smart rule, scheduled, fallback, paused, and expired outcomes
-- Redirect outcome logging for resolved destination, resolution reason, and scan status
 
 ## Analytics Features
 
 - Dedicated QR Buzz Analytics admin page
 - Date range filters for today, last 7 days, last 30 days, and all time
-- Summary cards for total QR codes, total scans, scans today, scans in the last 7 days, most scanned QR code, and latest scan
-- Lightweight scan trend chart without a heavy charting dependency
-- Top QR codes table sorted by total scans
-- Recent scan activity feed with referrer, user-agent summary, and country placeholder
-- Basic mobile/desktop/tablet breakdown
-- Basic browser-family breakdown
+- Summary cards, trend chart, top QR codes, recent scan activity, referrer/device/browser breakdowns
 - Individual QR analytics for dynamic QR codes
 - Campaign analytics for assigned dynamic QR codes
 - Privacy-conscious analytics using hashed IP, user agent, referrer, and country fields
@@ -148,13 +140,25 @@ Campaigns can be active or archived. Campaigns can only be deleted when no QR co
 QR Buzz uses custom tables rather than a custom post type:
 
 - `wp_qrbuzz_workspaces`
+- `wp_qrbuzz_workspace_members`
+- `wp_qrbuzz_user_profiles`
+- `wp_qrbuzz_subscriptions`
+- `wp_qrbuzz_webhook_events`
 - `wp_qrbuzz_qrcodes`
 - `wp_qrbuzz_scans`
 - `wp_qrbuzz_destination_history`
 - `wp_qrbuzz_campaigns`
 - `wp_qrbuzz_destination_rules`
 
-Existing QR codes are preserved during upgrade. Existing scheduled destination fields are copied into legacy-labelled Smart Destination rules, and the old fields are retained for compatibility. v0.8 design fields and v0.9 workspace fields are backfilled safely without changing payloads, shortcodes, tracking URLs, scans, campaigns, or Smart Destination rules.
+Existing QR codes are preserved during upgrade. Workspace, membership, profile, and subscription defaults are backfilled for existing installs without changing payloads, shortcodes, tracking URLs, scans, campaigns, brand kit settings, or Smart Destination rules.
+
+## Documentation
+
+- `docs/hosted-app-v095.md`
+- `docs/design-tokens.md`
+- `docs/rest-api.md`
+- `docs/workspace-plan.md`
+- `docs/diagnostics.md`
 
 ## Development
 
@@ -179,7 +183,7 @@ composer fix
 ## Release Process
 
 1. Merge the release branch into `main`.
-2. Tag the release, for example `v0.9.0`.
+2. Tag the release, for example `v0.9.5`.
 3. Push the tag to GitHub.
 4. The release workflow installs production dependencies and uploads `qr-buzz.zip` as a build artifact.
 
@@ -187,4 +191,4 @@ The workflow can also be run manually from the GitHub Actions tab.
 
 ## Roadmap
 
-Future releases will build on this foundation with public account/workspace management, real subscription billing, API keys, retention controls, deeper device/browser reporting, WooCommerce integration, live scan notifications, geo/device/referrer Smart Destination rules, campaign automation, advanced QR module styling, and optional Pro features.
+Future releases will build on this foundation with a fuller hosted marketing site, team invitations, production subscription operations, customer API keys, retention controls, deeper reporting, WooCommerce integration, live scan notifications, geo/device/referrer Smart Destination rules, campaign automation, advanced QR module styling, and optional Pro features.
