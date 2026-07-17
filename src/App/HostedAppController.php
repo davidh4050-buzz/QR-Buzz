@@ -246,7 +246,7 @@ class HostedAppController {
         $html .= '</select></label><label>Campaign<select name="campaign_id"><option value="0">Unassigned</option>';
         foreach ($this->campaigns->active() as $campaign) { $html .= '<option value="' . esc_attr($campaign->id) . '" ' . selected($qr ? $qr->campaignId : 0, $campaign->id, false) . '>' . esc_html($campaign->name) . '</option>'; }
         $html .= '</select></label></fieldset>';
-        foreach (array_keys($this->types->all()) as $fieldType) { $html .= '<fieldset><legend>' . esc_html($this->types->label($fieldType)) . '</legend>' . $this->typeFields($fieldType, $payload, $qr) . '</fieldset>'; }
+        $html .= '<fieldset><legend>' . esc_html($this->types->label($type)) . '</legend>' . $this->typeFields($type, $payload, $qr) . '</fieldset>';
         return $html;
     }
 
