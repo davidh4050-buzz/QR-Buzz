@@ -39,7 +39,7 @@ class DownloadController {
     }
 
     private function authorisedQrCode(): QRCode {
-        if (!current_user_can('manage_options')) {
+        if (!is_user_logged_in()) {
             wp_die(esc_html__('You do not have permission to download QR codes.', 'qr-buzz'), 403);
         }
 
