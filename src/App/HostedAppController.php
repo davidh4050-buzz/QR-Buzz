@@ -6,13 +6,16 @@ use QRBuzz\Account\ProfileRepository;
 use QRBuzz\Analytics\AnalyticsRepository;
 use QRBuzz\Analytics\DateRange;
 use QRBuzz\Analytics\PerQRAnalyticsService;
+use QRBuzz\Analytics\QRInsightService;
 use QRBuzz\Billing\StripeService;
 use QRBuzz\Billing\SubscriptionRepository;
 use QRBuzz\Database\CampaignRepository;
+use QRBuzz\Database\DestinationRuleRepository;
 use QRBuzz\Database\QRRepository;
 use QRBuzz\Database\WorkspaceRepository;
 use QRBuzz\Membership\EntitlementService;
 use QRBuzz\Membership\PlanRegistry;
+use QRBuzz\Models\DestinationRule;
 use QRBuzz\Models\QRCode;
 use QRBuzz\QR\Design\BrandKitSettings;
 use QRBuzz\QR\Design\QRDesignSettings;
@@ -20,6 +23,8 @@ use QRBuzz\QR\Design\QRThemeRegistry;
 use QRBuzz\QR\QRGenerator;
 use QRBuzz\QR\Types\QRPayloadService;
 use QRBuzz\QR\Types\QRTypeRegistry;
+use QRBuzz\Redirect\DestinationResolver;
+use QRBuzz\Utils\DateTimeHelper;
 use QRBuzz\Workspace\WorkspaceService;
 
 class HostedAppController {
@@ -41,6 +46,9 @@ class HostedAppController {
     private QRThemeRegistry $themes;
     private AnalyticsRepository $analyticsRepo;
     private PerQRAnalyticsService $perQrAnalytics;
+    private DestinationRuleRepository $rules;
+    private DestinationResolver $resolver;
+    private QRInsightService $insights;
 
     public function __construct() {
         $this->profiles = new ProfileRepository();
@@ -60,6 +68,9 @@ class HostedAppController {
         $this->stripe = new StripeService($this->subscriptions, $this->workspaceRepo);
         $this->analyticsRepo = new AnalyticsRepository(null, $this->workspaces);
         $this->perQrAnalytics = new PerQRAnalyticsService(null, $this->workspaces);
+        $this->rules = new DestinationRuleRepository($this->workspaces);
+        $this->resolver = new DestinationResolver($this->rules);
+        $this->insights = new QRInsightService($this->perQrAnalytics, $this->resolver, $this->rules);
     }
 
     public function init(): void { add_action('template_redirect', [$this, 'route'], 0); }
@@ -284,7 +295,33 @@ class HostedAppController {
         $payload = $this->payloads->payloadForQrCode($qr);
         try { $preview = '<img class="qrb-preview" src="' . esc_attr($this->generator->generatePngDataUri($payload, 260, QRDesignSettings::fromQrCode($qr))) . '" alt="">'; } catch (\Throwable $e) { $preview = '<p class="qrb-alert">Preview could not be generated.</p>'; }
         $png = $this->downloadUrl($qr->id, 'png'); $svg = $this->downloadUrl($qr->id, 'svg');
-        return '<div class="qrb-page-head"><h1>' . esc_html($qr->name) . '</h1><div class="qrb-actions"><a class="qrb-button" href="' . esc_url($this->studioUrl($qr->type, $qr->id)) . '">Edit in QR Studio</a><a class="qrb-button" href="' . esc_url($png) . '">Download PNG</a><a class="qrb-button" href="' . esc_url($svg) . '">Download SVG</a></div></div><div class="qrb-card qrb-detail">' . $preview . '<div><p><strong>Type:</strong> ' . esc_html($this->types->label($qr->type)) . '</p><p><strong>Destination / payload:</strong> ' . esc_html($qr->destinationUrl ?: $qr->staticPayload) . '</p><p><strong>Scans:</strong> ' . esc_html((string) $qr->scanCount) . '</p><p><code>' . esc_html($qr->isTrackable() ? $this->generator->trackingUrl($qr->shortcode) : $qr->shortcode) . '</code></p></div></div>' . $this->qrAnalyticsBlock($qr);
+        return '<div class="qrb-page-head"><h1>' . esc_html($qr->name) . '</h1><div class="qrb-actions"><a class="qrb-button" href="' . esc_url($this->studioUrl($qr->type, $qr->id)) . '">Edit in QR Studio</a><a class="qrb-button" href="' . esc_url($png) . '">Download PNG</a><a class="qrb-button" href="' . esc_url($svg) . '">Download SVG</a></div></div><div class="qrb-card qrb-detail">' . $preview . '<div><p><strong>Type:</strong> ' . esc_html($this->types->label($qr->type)) . '</p><p><strong>Destination / payload:</strong> ' . esc_html($qr->destinationUrl ?: $qr->staticPayload) . '</p><p><strong>Scans:</strong> ' . esc_html((string) $qr->scanCount) . '</p><p><code>' . esc_html($qr->isTrackable() ? $this->generator->trackingUrl($qr->shortcode) : $qr->shortcode) . '</code></p></div></div>' . $this->qrInsightsBlock($qr) . $this->smartDestinationsBlock($qr) . $this->qrAnalyticsBlock($qr);
+    }
+
+    private function qrInsightsBlock(QRCode $qr): string {
+        if (!$this->entitlements->allows('insights')) { return '<section class="qrb-card"><h2>Insights</h2><p>Insights are available on paid plans.</p></section>'; }
+        $html = '<section class="qrb-card"><h2>Insights</h2><ul class="qrb-insights-list">';
+        foreach ($this->insights->insights($qr) as $insight) { $html .= '<li>' . esc_html($insight) . '</li>'; }
+        return $html . '</ul></section>';
+    }
+
+    private function smartDestinationsBlock(QRCode $qr): string {
+        if (!$qr->isTrackable()) { return '<section class="qrb-card"><h2>Smart Destinations</h2><p>Static QR codes encode their payload directly and do not use Smart Destinations.</p></section>'; }
+        if (!$this->entitlements->allows('smart_destinations')) { return '<section class="qrb-card"><h2>Smart Destinations</h2><p>Upgrade to Pro or Business to route scans with scheduled and conditional destinations.</p></section>'; }
+        $resolution = $this->resolver->resolve($qr);
+        $destination = $resolution->destinationUrl ?: $resolution->message;
+        $rules = $this->rules->forQrCode($qr->id);
+        $html = '<section class="qrb-card"><div class="qrb-page-head"><h2>Smart Destinations</h2><a class="qrb-button" href="' . esc_url($this->studioUrl($qr->type, $qr->id)) . '">Edit destination settings</a></div>';
+        $html .= $this->metrics([['Current result',$resolution->shouldRedirect ? 'Redirect' : 'Message'],['Reason',$this->resolutionReasonLabel($resolution->reason)],['Status',$resolution->scanStatus],['Active rule',$resolution->matchedRuleName ?: '-']]);
+        $html .= '<p><strong>Resolved destination:</strong> ' . esc_html($destination ?: '-') . '</p>';
+        $html .= '<table class="qrb-table"><thead><tr><th>Priority</th><th>Rule</th><th>Status</th><th>Destination</th><th>Conditions</th></tr></thead><tbody>';
+        if (!$rules) { $html .= '<tr><td colspan="5">No Smart Destination rules yet. The primary destination is currently used.</td></tr>'; }
+        foreach ($rules as $rule) { $html .= $this->smartDestinationRuleRow($rule); }
+        return $html . '</tbody></table></section>';
+    }
+
+    private function smartDestinationRuleRow(DestinationRule $rule): string {
+        return '<tr><td>' . esc_html((string) $rule->priority) . '</td><td>' . esc_html($rule->name) . '</td><td>' . esc_html(ucfirst($rule->status)) . '</td><td>' . esc_html($rule->destinationUrl) . '</td><td>' . esc_html($this->ruleConditionLabel($rule)) . '</td></tr>';
     }
 
     private function qrAnalyticsBlock(QRCode $qr): string {
@@ -345,6 +382,8 @@ class HostedAppController {
     private function optionalUrl(string $field): ?string { $url = esc_url_raw((string) ($_POST[$field] ?? '')); return trim($url) === '' ? null : $url; }
     private function optionalDateTime(string $field): ?string { $value = sanitize_text_field((string) ($_POST[$field] ?? '')); if ($value === '') { return null; } $timestamp = strtotime($value, current_time('timestamp')); return $timestamp ? gmdate('Y-m-d H:i:s', $timestamp) : null; }
     private function localInput(?string $date): string { return $date ? mysql2date('Y-m-d\TH:i', $date) : ''; }
+    private function resolutionReasonLabel(string $reason): string { $labels = ['primary' => 'Primary destination', 'scheduled' => 'Scheduled destination', 'smart_rule' => 'Smart Destination rule', 'fallback' => 'Fallback URL', 'paused' => 'Paused', 'expired' => 'Expired']; return $labels[$reason] ?? ucwords(str_replace('_', ' ', $reason)); }
+    private function ruleConditionLabel(DestinationRule $rule): string { $parts = []; if ($rule->startsAt || $rule->endsAt) { $parts[] = DateTimeHelper::utcToDisplay($rule->startsAt) . ' to ' . DateTimeHelper::utcToDisplay($rule->endsAt); } if ($rule->daysOfWeek) { $parts[] = 'Days: ' . $rule->daysOfWeek; } if ($rule->timeStart || $rule->timeEnd) { $parts[] = 'Time: ' . ($rule->timeStart ?: '00:00') . ' to ' . ($rule->timeEnd ?: '23:59'); } return $parts ? implode('; ', $parts) : 'Always active'; }
     private function barChart(array $series): string { $max = max(1, ...array_map(static fn($r): int => (int) $r['scans'], $series)); $html = '<div class="qrb-bars">'; foreach ($series as $row) { $height = max(4, (int) round(((int) $row['scans'] / $max) * 90)); $html .= '<span title="' . esc_attr($row['date'] . ': ' . $row['scans']) . '" style="height:' . esc_attr((string) $height) . 'px"></span>'; } return $html . '</div>'; }
     private function breakdownTable(array $rows): string { if (!$rows) { return '<p>No data yet.</p>'; } $html = '<table class="qrb-table"><tbody>'; foreach ($rows as $row) { $html .= '<tr><td>' . esc_html((string) $row['label']) . '</td><td>' . esc_html((string) $row['count']) . '</td></tr>'; } return $html . '</tbody></table>'; }
     private function recentScansTable(array $rows): string { if (!$rows) { return '<p>No scans yet.</p>'; } $html = '<table class="qrb-table"><thead><tr><th>When</th><th>Referrer</th><th>User agent</th></tr></thead><tbody>'; foreach ($rows as $row) { $html .= '<tr><td>' . esc_html((string) $row->scanned_at) . '</td><td>' . esc_html($row->referrer ?: 'Direct / unknown') . '</td><td>' . esc_html((string) ($row->user_agent_summary ?? 'Unknown')) . '</td></tr>'; } return $html . '</tbody></table>'; }
@@ -438,7 +477,7 @@ class HostedAppController {
 
     private function page(string $title, string $content): void { status_header(200); nocache_headers(); echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . esc_html($title) . '</title>' . $this->styles() . '</head><body class="qrb-body"><main class="qrb-public"><a class="qrb-logo" href="/">QR Buzz</a>' . $content . '</main></body></html>'; exit; }
     private function app(string $title, string $content): void { status_header(200); nocache_headers(); $this->enqueueAppAssets(); $w = $this->workspaces->current(); echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . esc_html($title) . '</title>' . $this->styles() . $this->headAssets() . '</head><body class="qrb-body"><div class="qrb-shell"><aside><a class="qrb-logo" href="/app/dashboard">QR Buzz</a><nav><a href="/app/dashboard">Dashboard</a><a href="/app/library">Library</a><a href="/app/qr/new">New QR</a><a href="/app/campaigns">Campaigns</a><a href="/app/analytics">Analytics</a><a href="/app/settings/account">Settings</a></nav></aside><div><header><strong>' . esc_html($w->name) . '</strong><nav><a href="/app/settings/billing">Billing</a><a href="/logout">Logout</a></nav></header><main>' . $content . '</main></div></div>' . $this->appScripts() . $this->footerAssets() . '</body></html>'; exit; }
-    private function styles(): string { return '<style>:root{--qrb-primary:#0f766e;--qrb-accent:#2563eb;--qrb-bg:#f6f7f7;--qrb-surface:#fff;--qrb-border:#dcdcde;--qrb-text:#1d2327;--qrb-muted:#646970;--qrb-radius:6px}body.qrb-body{margin:0;background:var(--qrb-bg);color:var(--qrb-text);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}.qrb-public{max-width:760px;margin:40px auto;padding:24px}.qrb-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}.qrb-shell aside{background:#111827;color:#fff;padding:20px}.qrb-logo{font-weight:700;text-decoration:none;color:inherit;display:block;margin-bottom:20px}.qrb-shell aside a{color:#fff;display:block;padding:9px 0;text-decoration:none}.qrb-shell header{display:flex;justify-content:space-between;align-items:center;background:#fff;border-bottom:1px solid var(--qrb-border);padding:14px 22px}.qrb-shell main{padding:22px}.qrb-card,.qrb-hero{background:var(--qrb-surface);border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:18px;margin:0 0 16px}.qrb-form{display:grid;gap:12px}.qrb-form fieldset{border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:12px;display:grid;gap:10px}.qrb-form input,.qrb-form select,.qrb-form textarea{display:block;width:100%;max-width:560px;padding:9px;border:1px solid var(--qrb-border);border-radius:4px}.qrb-form input[type=color]{width:70px;height:42px;max-width:70px;padding:3px;cursor:pointer}.qrb-logo-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.qrb-logo-preview{display:block;margin-top:8px}.qrb-logo-preview img{max-width:72px;height:auto;border:1px solid var(--qrb-border);background:#fff}.qrb-preview-status{color:var(--qrb-muted);margin:10px 0}.qrb-button{display:inline-block;border:1px solid var(--qrb-border);background:#fff;border-radius:4px;padding:9px 12px;text-decoration:none;color:var(--qrb-text);cursor:pointer}.qrb-button-primary{background:var(--qrb-primary);border-color:var(--qrb-primary);color:#fff}.qrb-actions{display:flex;gap:8px;flex-wrap:wrap}.qrb-page-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.qrb-metrics,.qrb-plan-grid,.qrb-type-grid,.qrb-analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.qrb-card span{display:block;color:var(--qrb-muted)}.qrb-card strong{font-size:24px}.qrb-table{width:100%;border-collapse:collapse;background:#fff}.qrb-table th,.qrb-table td{border-bottom:1px solid var(--qrb-border);padding:10px;text-align:left}.qrb-alert{background:#fff7ed;border-left:4px solid #f97316;padding:10px}.qrb-detail{display:grid;grid-template-columns:280px 1fr;gap:20px}.qrb-studio{display:grid;grid-template-columns:minmax(340px,380px) minmax(0,1fr);gap:24px}.qrb-preview{max-width:260px;height:auto}.qrb-studio-preview{align-self:start;position:sticky;top:16px;padding:24px}.qrb-live-preview{background:#dddddd;border-radius:4px;padding:24px;display:flex;align-items:center;justify-content:center;min-height:308px;box-sizing:border-box}.qrb-live-preview .qrb-preview{display:block;max-width:100%;height:auto}.qrb-bars{height:110px;display:flex;align-items:end;gap:3px;border-bottom:1px solid var(--qrb-border);padding-top:10px}.qrb-bars span{display:block;flex:1;background:var(--qrb-primary);min-width:4px}@media(max-width:780px){.qrb-shell{grid-template-columns:1fr}.qrb-shell aside{position:static}.qrb-shell aside nav{display:flex;gap:10px;overflow:auto}.qrb-detail,.qrb-studio{grid-template-columns:1fr}.qrb-studio-preview{position:static}}</style>'; }
+    private function styles(): string { return '<style>:root{--qrb-primary:#0f766e;--qrb-accent:#2563eb;--qrb-bg:#f6f7f7;--qrb-surface:#fff;--qrb-border:#dcdcde;--qrb-text:#1d2327;--qrb-muted:#646970;--qrb-radius:6px}body.qrb-body{margin:0;background:var(--qrb-bg);color:var(--qrb-text);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}.qrb-public{max-width:760px;margin:40px auto;padding:24px}.qrb-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}.qrb-shell aside{background:#111827;color:#fff;padding:20px}.qrb-logo{font-weight:700;text-decoration:none;color:inherit;display:block;margin-bottom:20px}.qrb-shell aside a{color:#fff;display:block;padding:9px 0;text-decoration:none}.qrb-shell header{display:flex;justify-content:space-between;align-items:center;background:#fff;border-bottom:1px solid var(--qrb-border);padding:14px 22px}.qrb-shell main{padding:22px}.qrb-card,.qrb-hero{background:var(--qrb-surface);border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:18px;margin:0 0 16px}.qrb-form{display:grid;gap:12px}.qrb-form fieldset{border:1px solid var(--qrb-border);border-radius:var(--qrb-radius);padding:12px;display:grid;gap:10px}.qrb-form input,.qrb-form select,.qrb-form textarea{display:block;width:100%;max-width:560px;padding:9px;border:1px solid var(--qrb-border);border-radius:4px}.qrb-form input[type=color]{width:70px;height:42px;max-width:70px;padding:3px;cursor:pointer}.qrb-logo-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.qrb-logo-preview{display:block;margin-top:8px}.qrb-logo-preview img{max-width:72px;height:auto;border:1px solid var(--qrb-border);background:#fff}.qrb-preview-status{color:var(--qrb-muted);margin:10px 0}.qrb-button{display:inline-block;border:1px solid var(--qrb-border);background:#fff;border-radius:4px;padding:9px 12px;text-decoration:none;color:var(--qrb-text);cursor:pointer}.qrb-button-primary{background:var(--qrb-primary);border-color:var(--qrb-primary);color:#fff}.qrb-actions{display:flex;gap:8px;flex-wrap:wrap}.qrb-page-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.qrb-metrics,.qrb-plan-grid,.qrb-type-grid,.qrb-analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.qrb-insights-list{margin:0;padding-left:20px}.qrb-insights-list li{margin:0 0 8px}.qrb-card span{display:block;color:var(--qrb-muted)}.qrb-card strong{font-size:24px}.qrb-table{width:100%;border-collapse:collapse;background:#fff}.qrb-table th,.qrb-table td{border-bottom:1px solid var(--qrb-border);padding:10px;text-align:left}.qrb-alert{background:#fff7ed;border-left:4px solid #f97316;padding:10px}.qrb-detail{display:grid;grid-template-columns:280px 1fr;gap:20px}.qrb-studio{display:grid;grid-template-columns:minmax(340px,380px) minmax(0,1fr);gap:24px}.qrb-preview{max-width:260px;height:auto}.qrb-studio-preview{align-self:start;position:sticky;top:16px;padding:24px}.qrb-live-preview{background:#dddddd;border-radius:4px;padding:24px;display:flex;align-items:center;justify-content:center;min-height:308px;box-sizing:border-box}.qrb-live-preview .qrb-preview{display:block;max-width:100%;height:auto}.qrb-bars{height:110px;display:flex;align-items:end;gap:3px;border-bottom:1px solid var(--qrb-border);padding-top:10px}.qrb-bars span{display:block;flex:1;background:var(--qrb-primary);min-width:4px}@media(max-width:780px){.qrb-shell{grid-template-columns:1fr}.qrb-shell aside{position:static}.qrb-shell aside nav{display:flex;gap:10px;overflow:auto}.qrb-detail,.qrb-studio{grid-template-columns:1fr}.qrb-studio-preview{position:static}}</style>'; }
     private function path(): string { return trim(parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH), '/'); }
     private function redirect(string $path): void { wp_safe_redirect(str_starts_with($path, 'http') ? $path : home_url($path)); exit; }
     private function rateLimited(string $scope): bool { $key = 'qrbuzz_' . $scope . '_' . md5((string) ($_SERVER['REMOTE_ADDR'] ?? '')); $count = (int) get_transient($key); set_transient($key, $count + 1, 10 * MINUTE_IN_SECONDS); return $count > 12; }
