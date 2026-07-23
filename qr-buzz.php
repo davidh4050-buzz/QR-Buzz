@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: QR Buzz
- * Description: QR code management, branded design, campaigns, smart destinations, dynamic QR tracking, static QR types, and privacy-conscious scan analytics for WordPress (v0.9.0)
- * Version: 0.9.0
+ * Description: QR code management, branded design, hosted accounts, onboarding, campaigns, smart destinations, and analytics for WordPress (v0.9.5)
+ * Version: 0.9.5
  * Requires PHP: 8.3
  * Requires at least: 7.0
  * Author: QR Buzz
@@ -10,14 +10,12 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('QR_BUZZ_VERSION', '0.9.0');
+define('QR_BUZZ_VERSION', '0.9.5');
 define('QR_BUZZ_PATH', plugin_dir_path(__FILE__));
 define('QR_BUZZ_URL', plugin_dir_url(__FILE__));
 
 $qrBuzzAutoload = QR_BUZZ_PATH . 'vendor/autoload.php';
-if (file_exists($qrBuzzAutoload)) {
-    require_once $qrBuzzAutoload;
-}
+if (file_exists($qrBuzzAutoload)) { require_once $qrBuzzAutoload; }
 
 spl_autoload_register(function($class){
     if (strpos($class, 'QRBuzz\\') !== 0) return;
@@ -28,15 +26,15 @@ spl_autoload_register(function($class){
 });
 
 register_activation_hook(__FILE__, function(){
-    QRBuzz\Database\Installer::activate();
-    (new QRBuzz\Redirect\RedirectHandler())->addRewriteRule();
-    flush_rewrite_rules();
+    ob_start();
+    try {
+        QRBuzz\Database\Installer::activate();
+        (new QRBuzz\Redirect\RedirectHandler())->addRewriteRule();
+        flush_rewrite_rules();
+    } finally {
+        if (ob_get_level() > 0) { ob_end_clean(); }
+    }
 });
 
-register_deactivation_hook(__FILE__, function(){
-    flush_rewrite_rules();
-});
-
-add_action('plugins_loaded', function(){
-    (new QRBuzz\Plugin())->init();
-});
+register_deactivation_hook(__FILE__, function(){ flush_rewrite_rules(); });
+add_action('plugins_loaded', function(){ (new QRBuzz\Plugin())->init(); });

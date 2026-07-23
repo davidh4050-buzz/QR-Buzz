@@ -28,10 +28,10 @@ class BrandKitSettings {
         return ['brand_name' => '', 'primary_color' => '#0f4c81', 'secondary_color' => '#16a085', 'foreground_color' => '#000000', 'background_color' => '#ffffff', 'default_theme' => 'classic', 'default_logo_attachment_id' => 0, 'default_error_correction' => 'H'];
     }
 
-    public function designDefaults(): QRDesignSettings {
+    public function designDefaults(bool $includeLogo = false): QRDesignSettings {
         $settings = $this->get();
         $theme = $this->themes->designSettings((string) $settings['default_theme']);
-        return new QRDesignSettings(array_merge($theme->toArray(), ['foreground_color' => $settings['foreground_color'], 'background_color' => $settings['background_color'], 'error_correction' => $settings['default_error_correction'], 'logo_attachment_id' => absint($settings['default_logo_attachment_id'])]));
+        return new QRDesignSettings(array_merge($theme->toArray(), ['foreground_color' => $settings['foreground_color'], 'background_color' => $settings['background_color'], 'error_correction' => $settings['default_error_correction'], 'logo_attachment_id' => $includeLogo ? absint($settings['default_logo_attachment_id']) : 0]));
     }
 
     public function saveFromPost(array $post): void {

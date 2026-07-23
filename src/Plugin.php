@@ -9,6 +9,8 @@ use QRBuzz\Admin\ExportController;
 use QRBuzz\Admin\PlanGuard;
 use QRBuzz\Admin\PlatformPage;
 use QRBuzz\Admin\QRPreviewController;
+use QRBuzz\App\HostedAppController;
+use QRBuzz\Billing\WebhookController;
 use QRBuzz\Core\Requirements;
 use QRBuzz\Database\Installer;
 use QRBuzz\Database\QRRepository;
@@ -19,15 +21,16 @@ class Plugin {
 
     private QRRepository $repository;
 
-    public function __construct(?QRRepository $repository = null) {
-        $this->repository = $repository ?: new QRRepository();
-    }
+    public function __construct(?QRRepository $repository = null) { $this->repository = $repository ?: new QRRepository(); }
 
     public function init(): void {
         $this->maybeUpgradeDatabase();
+        Installer::registerRoles();
         (new Requirements())->init();
         (new RedirectHandler($this->repository))->init();
         (new RestController())->init();
+        (new WebhookController())->init();
+        (new HostedAppController())->init();
 
         if (is_admin()) {
             (new PlatformPage())->init();

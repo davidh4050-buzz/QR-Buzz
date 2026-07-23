@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.9.5
+- Added hosted frontend routes for registration, login, logout, password recovery, email verification, onboarding, and authenticated `/app/*` pages
+- Added QR Buzz Customer WordPress role while keeping WordPress password/session APIs as the authentication foundation
+- Added workspace membership table and user profile table for hosted account state, email verification, onboarding progress, and future team support
+- Extended workspaces with onboarding status, onboarding step, timezone, website URL, and intended-use fields
+- Added subscription and Stripe webhook event tables for test-mode billing state and idempotent webhook handling
+- Added hosted onboarding flow for plan selection, workspace setup, first-QR prompt, and dashboard entry
+- Added Free plan activation and Stripe test-mode checkout scaffolding for Pro and Business using configured environment/constants
+- Added Stripe webhook signature verification and local subscription/plan sync for checkout, subscription, invoice paid, and payment-failed events
+- Added hosted app shell with dashboard, library, new QR, QR detail, campaigns, analytics, account settings, workspace settings, and billing settings
+- Added frontend QR and campaign creation paths that reuse existing QR Buzz repositories and payload builders
+- Added customer-side hosted QR previews plus PNG and SVG download routes scoped to the current workspace
+- Added account email updates with automatic reverification
+- Updated entitlement handling so inactive or incomplete subscription states fall back to Free-plan access
+- Updated plugin metadata for v0.9.5
+
 ## 0.9.0
 - Added default workspace ownership foundation with `qrbuzz_workspaces` and workspace-scoped QR, campaign, rule, brand kit, and analytics queries
 - Added local Free, Pro, and Business plan registry for development/testing without billing or external subscription services
@@ -34,7 +50,7 @@
 - Added campaign column and campaign filter to the QR code list
 - Added campaign-level analytics for QR totals, dynamic/static split, scans, top QR code, trend, recent activity, referrers, devices, and browsers
 - Added Smart Destinations rule table and repository for time-based destination rules
-- Added date range, day-of-week, and time-of-day rule conditions
+- Added date range, day-of-week, and time-of-day windows
 - Added Smart Destinations rule builder on dynamic QR edit screens
 - Added admin destination simulator with future date/time testing
 - Updated the destination resolver so paused and expired states override rules, active rules run by priority, and primary destination remains the fallback

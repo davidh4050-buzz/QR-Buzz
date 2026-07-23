@@ -5,12 +5,12 @@ class Installer {
 
     public static function activate(): void {
         self::createTables();
+        self::registerRoles();
         update_option('qrbuzz_db_version', QR_BUZZ_VERSION);
     }
 
     public static function createTables(): void {
         global $wpdb;
-
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
         $charsetCollate = $wpdb->get_charset_collate();
@@ -20,23 +20,34 @@ class Installer {
         $historyTable = Schema::destinationHistoryTable();
         $campaignsTable = Schema::campaignsTable();
         $rulesTable = Schema::destinationRulesTable();
+        $membersTable = Schema::membershipsTable();
+        $profilesTable = Schema::profilesTable();
+        $subscriptionsTable = Schema::subscriptionsTable();
+        $webhookEventsTable = Schema::webhookEventsTable();
 
-        $workspacesSql = "CREATE TABLE {$workspacesTable} (
+        dbDelta("CREATE TABLE {$workspacesTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             name varchar(191) NOT NULL,
             slug varchar(191) NOT NULL,
             status varchar(20) NOT NULL DEFAULT 'active',
             owner_user_id bigint(20) unsigned NULL,
             plan_key varchar(32) NOT NULL DEFAULT 'free',
+            onboarding_status varchar(32) NOT NULL DEFAULT 'complete',
+            onboarding_step varchar(32) NULL,
+            timezone varchar(64) NULL,
+            website_url text NULL,
+            intended_use varchar(64) NULL,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY slug (slug),
             KEY status (status),
-            KEY plan_key (plan_key)
-        ) {$charsetCollate};";
+            KEY owner_user_id (owner_user_id),
+            KEY plan_key (plan_key),
+            KEY onboarding_status (onboarding_status)
+        ) {$charsetCollate};");
 
-        $qrcodesSql = "CREATE TABLE {$qrcodesTable} (
+        dbDelta("CREATE TABLE {$qrcodesTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             workspace_id bigint(20) unsigned NULL,
             name varchar(191) NOT NULL,
@@ -74,9 +85,9 @@ class Installer {
             KEY is_trackable (is_trackable),
             KEY campaign_id (campaign_id),
             KEY theme (theme)
-        ) {$charsetCollate};";
+        ) {$charsetCollate};");
 
-        $scansSql = "CREATE TABLE {$scansTable} (
+        dbDelta("CREATE TABLE {$scansTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             qr_id bigint(20) unsigned NOT NULL,
             scanned_at datetime NOT NULL,
@@ -93,9 +104,9 @@ class Installer {
             KEY qr_scanned_at (qr_id, scanned_at),
             KEY scan_status (scan_status),
             KEY resolution_reason (resolution_reason)
-        ) {$charsetCollate};";
+        ) {$charsetCollate};");
 
-        $historySql = "CREATE TABLE {$historyTable} (
+        dbDelta("CREATE TABLE {$historyTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             qr_id bigint(20) unsigned NOT NULL,
             change_type varchar(64) NOT NULL,
@@ -107,9 +118,9 @@ class Installer {
             KEY qr_id (qr_id),
             KEY change_type (change_type),
             KEY changed_at (changed_at)
-        ) {$charsetCollate};";
+        ) {$charsetCollate};");
 
-        $campaignsSql = "CREATE TABLE {$campaignsTable} (
+        dbDelta("CREATE TABLE {$campaignsTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             workspace_id bigint(20) unsigned NULL,
             name varchar(191) NOT NULL,
@@ -122,9 +133,9 @@ class Installer {
             KEY workspace_id (workspace_id),
             KEY slug (slug),
             KEY status (status)
-        ) {$charsetCollate};";
+        ) {$charsetCollate};");
 
-        $rulesSql = "CREATE TABLE {$rulesTable} (
+        dbDelta("CREATE TABLE {$rulesTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             workspace_id bigint(20) unsigned NULL,
             qr_id bigint(20) unsigned NOT NULL,
@@ -147,14 +158,75 @@ class Installer {
             KEY status (status),
             KEY starts_at (starts_at),
             KEY ends_at (ends_at)
-        ) {$charsetCollate};";
+        ) {$charsetCollate};");
 
-        dbDelta($workspacesSql);
-        dbDelta($qrcodesSql);
-        dbDelta($scansSql);
-        dbDelta($historySql);
-        dbDelta($campaignsSql);
-        dbDelta($rulesSql);
+        dbDelta("CREATE TABLE {$membersTable} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            workspace_id bigint(20) unsigned NOT NULL,
+            user_id bigint(20) unsigned NOT NULL,
+            role varchar(32) NOT NULL DEFAULT 'workspace_owner',
+            status varchar(20) NOT NULL DEFAULT 'active',
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY workspace_user (workspace_id, user_id),
+            KEY user_id (user_id),
+            KEY role (role),
+            KEY status (status)
+        ) {$charsetCollate};");
+
+        dbDelta("CREATE TABLE {$profilesTable} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL,
+            email_verified tinyint(1) NOT NULL DEFAULT 0,
+            verification_token_hash char(64) NULL,
+            verification_sent_at datetime NULL,
+            onboarding_status varchar(32) NOT NULL DEFAULT 'pending',
+            onboarding_step varchar(32) NULL,
+            terms_accepted_at datetime NULL,
+            last_login_at datetime NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY user_id (user_id),
+            KEY email_verified (email_verified),
+            KEY onboarding_status (onboarding_status)
+        ) {$charsetCollate};");
+
+        dbDelta("CREATE TABLE {$subscriptionsTable} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            workspace_id bigint(20) unsigned NOT NULL,
+            user_id bigint(20) unsigned NULL,
+            plan_key varchar(32) NOT NULL DEFAULT 'free',
+            status varchar(32) NOT NULL DEFAULT 'free',
+            stripe_customer_id varchar(191) NULL,
+            stripe_subscription_id varchar(191) NULL,
+            stripe_checkout_session_id varchar(191) NULL,
+            current_period_start datetime NULL,
+            current_period_end datetime NULL,
+            cancel_at_period_end tinyint(1) NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY workspace_id (workspace_id),
+            KEY user_id (user_id),
+            KEY plan_key (plan_key),
+            KEY status (status),
+            KEY stripe_customer_id (stripe_customer_id),
+            KEY stripe_subscription_id (stripe_subscription_id)
+        ) {$charsetCollate};");
+
+        dbDelta("CREATE TABLE {$webhookEventsTable} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            provider varchar(32) NOT NULL DEFAULT 'stripe',
+            event_id varchar(191) NOT NULL,
+            event_type varchar(191) NOT NULL,
+            processed_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY provider_event (provider, event_id),
+            KEY event_type (event_type)
+        ) {$charsetCollate};");
+
         $workspaceId = self::ensureDefaultWorkspace();
         self::backfillWorkspaceIds($workspaceId);
         self::backfillStatuses();
@@ -163,54 +235,50 @@ class Installer {
         self::backfillDesignSettings();
         (new DestinationRuleRepository())->migrateLegacyScheduledDestinations();
         self::backfillWorkspaceIds($workspaceId);
+        self::backfillMemberships($workspaceId);
+        self::backfillSubscription($workspaceId);
     }
 
-    public static function ensureDefaultWorkspace(): int {
-        return (new WorkspaceRepository())->createDefault();
+    public static function registerRoles(): void {
+        add_role('qrbuzz_customer', 'QR Buzz Customer', ['read' => true]);
+        $role = get_role('qrbuzz_customer');
+        if ($role) {
+            $role->add_cap('upload_files');
+        }
     }
+
+    public static function ensureDefaultWorkspace(): int { return (new WorkspaceRepository())->createDefault(); }
 
     private static function backfillWorkspaceIds(int $workspaceId): void {
         global $wpdb;
-        $workspaceId = absint($workspaceId);
-        if ($workspaceId <= 0) {
-            return;
-        }
-
+        if ($workspaceId <= 0) { return; }
         $wpdb->query($wpdb->prepare('UPDATE ' . Schema::qrcodesTable() . ' SET workspace_id = %d WHERE workspace_id IS NULL OR workspace_id = 0', $workspaceId));
         $wpdb->query($wpdb->prepare('UPDATE ' . Schema::campaignsTable() . ' SET workspace_id = %d WHERE workspace_id IS NULL OR workspace_id = 0', $workspaceId));
         $wpdb->query($wpdb->prepare('UPDATE ' . Schema::destinationRulesTable() . ' SET workspace_id = %d WHERE workspace_id IS NULL OR workspace_id = 0', $workspaceId));
     }
 
-    private static function backfillStatuses(): void {
+    private static function backfillMemberships(int $workspaceId): void {
         global $wpdb;
-        $qrcodesTable = Schema::qrcodesTable();
-        $wpdb->query("UPDATE {$qrcodesTable} SET status = 'active' WHERE status = '' OR status IS NULL");
-        $wpdb->query("UPDATE {$qrcodesTable} SET status = 'paused' WHERE active = 0 AND status = 'active'");
+        $workspace = (new WorkspaceRepository())->find($workspaceId);
+        if (!$workspace || $workspace->ownerUserId <= 0) { return; }
+        $exists = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . Schema::membershipsTable() . ' WHERE workspace_id = %d AND user_id = %d', $workspaceId, $workspace->ownerUserId));
+        if ($exists > 0) { return; }
+        $now = current_time('mysql');
+        $wpdb->insert(Schema::membershipsTable(), ['workspace_id' => $workspaceId, 'user_id' => $workspace->ownerUserId, 'role' => 'workspace_owner', 'status' => 'active', 'created_at' => $now, 'updated_at' => $now], ['%d','%d','%s','%s','%s','%s']);
     }
 
-    private static function backfillTypes(): void {
+    private static function backfillSubscription(int $workspaceId): void {
         global $wpdb;
-        $qrcodesTable = Schema::qrcodesTable();
-        $wpdb->query("UPDATE {$qrcodesTable} SET type = 'dynamic_url' WHERE type = '' OR type IS NULL");
-        $wpdb->query("UPDATE {$qrcodesTable} SET is_trackable = 1 WHERE type = 'dynamic_url'");
-        $wpdb->query("UPDATE {$qrcodesTable} SET static_payload = destination_url WHERE type = 'dynamic_url' AND (static_payload IS NULL OR static_payload = '')");
+        $workspace = (new WorkspaceRepository())->find($workspaceId);
+        if (!$workspace) { return; }
+        $exists = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . Schema::subscriptionsTable() . ' WHERE workspace_id = %d', $workspaceId));
+        if ($exists > 0) { return; }
+        $now = current_time('mysql');
+        $wpdb->insert(Schema::subscriptionsTable(), ['workspace_id' => $workspaceId, 'user_id' => $workspace->ownerUserId ?: null, 'plan_key' => $workspace->planKey, 'status' => $workspace->planKey === 'free' ? 'free' : 'active', 'created_at' => $now, 'updated_at' => $now], ['%d','%d','%s','%s','%s','%s']);
     }
 
-    private static function backfillCampaigns(): void {
-        global $wpdb;
-        $qrcodesTable = Schema::qrcodesTable();
-        $wpdb->query("UPDATE {$qrcodesTable} SET campaign_id = NULL WHERE campaign_id = 0");
-    }
-
-    private static function backfillDesignSettings(): void {
-        global $wpdb;
-        $qrcodesTable = Schema::qrcodesTable();
-        $wpdb->query("UPDATE {$qrcodesTable} SET theme = 'classic' WHERE theme = '' OR theme IS NULL");
-        $wpdb->query("UPDATE {$qrcodesTable} SET foreground_color = '#000000' WHERE foreground_color = '' OR foreground_color IS NULL");
-        $wpdb->query("UPDATE {$qrcodesTable} SET background_color = '#ffffff' WHERE background_color = '' OR background_color IS NULL");
-        $wpdb->query("UPDATE {$qrcodesTable} SET error_correction = 'H' WHERE error_correction = '' OR error_correction IS NULL");
-        $wpdb->query("UPDATE {$qrcodesTable} SET margin = 12 WHERE margin IS NULL");
-        $wpdb->query("UPDATE {$qrcodesTable} SET logo_size = 20 WHERE logo_size IS NULL OR logo_size = 0");
-        $wpdb->query("UPDATE {$qrcodesTable} SET logo_attachment_id = NULL WHERE logo_attachment_id = 0");
-    }
+    private static function backfillStatuses(): void { global $wpdb; $table = Schema::qrcodesTable(); $wpdb->query("UPDATE {$table} SET status = 'active' WHERE status = '' OR status IS NULL"); $wpdb->query("UPDATE {$table} SET status = 'paused' WHERE active = 0 AND status = 'active'"); }
+    private static function backfillTypes(): void { global $wpdb; $table = Schema::qrcodesTable(); $wpdb->query("UPDATE {$table} SET type = 'dynamic_url' WHERE type = '' OR type IS NULL"); $wpdb->query("UPDATE {$table} SET is_trackable = 1 WHERE type = 'dynamic_url'"); $wpdb->query("UPDATE {$table} SET static_payload = destination_url WHERE type = 'dynamic_url' AND (static_payload IS NULL OR static_payload = '')"); }
+    private static function backfillCampaigns(): void { global $wpdb; $wpdb->query('UPDATE ' . Schema::qrcodesTable() . ' SET campaign_id = NULL WHERE campaign_id = 0'); }
+    private static function backfillDesignSettings(): void { global $wpdb; $table = Schema::qrcodesTable(); $wpdb->query("UPDATE {$table} SET theme = 'classic' WHERE theme = '' OR theme IS NULL"); $wpdb->query("UPDATE {$table} SET foreground_color = '#000000' WHERE foreground_color = '' OR foreground_color IS NULL"); $wpdb->query("UPDATE {$table} SET background_color = '#ffffff' WHERE background_color = '' OR background_color IS NULL"); $wpdb->query("UPDATE {$table} SET error_correction = 'H' WHERE error_correction = '' OR error_correction IS NULL"); $wpdb->query("UPDATE {$table} SET margin = 12 WHERE margin IS NULL"); $wpdb->query("UPDATE {$table} SET logo_size = 20 WHERE logo_size IS NULL OR logo_size = 0"); $wpdb->query("UPDATE {$table} SET logo_attachment_id = NULL WHERE logo_attachment_id = 0"); }
 }

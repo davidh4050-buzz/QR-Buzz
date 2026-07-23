@@ -29,7 +29,7 @@ class QRPreviewController {
     }
 
     public function preview(): void {
-        if (!current_user_can('manage_options')) {
+        if (!is_user_logged_in()) {
             wp_send_json_error(['message' => __('You do not have permission to preview QR codes.', 'qr-buzz')], 403);
         }
 
