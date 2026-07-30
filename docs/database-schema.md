@@ -40,7 +40,7 @@ Important fields include:
 - `static_payload`
 - `is_trackable`
 - `campaign_id`
-- design fields such as theme, colours, transparency, error correction, margin, logo, and logo size
+- design fields such as theme, colours, transparency, error correction, margin, logo, logo size, module style, finder style, finder colour, and caption settings
 
 ### qrbuzz_scans
 

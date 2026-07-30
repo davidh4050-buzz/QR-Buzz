@@ -1,6 +1,6 @@
 # QR Buzz Design Tokens
 
-The v0.9.5 hosted app uses CSS custom properties in the frontend shell.
+The v0.9.6 hosted app uses CSS custom properties in the frontend shell and stores the customer workspace token layer in `assets/css/tokens.css`.
 
 Current tokens:
 

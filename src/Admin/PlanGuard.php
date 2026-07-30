@@ -60,6 +60,13 @@ class PlanGuard {
             $_POST['transparent_background'] = '';
             $_POST['error_correction'] = 'M';
             $_POST['margin'] = '10';
+            $_POST['dot_style'] = 'square';
+            $_POST['finder_style'] = 'square';
+            $_POST['finder_dot_style'] = 'square';
+            $_POST['finder_color'] = '';
+            $_POST['caption'] = '';
+            $_POST['caption_font_size'] = '16';
+            $_POST['caption_font_color'] = '#000000';
         }
 
         if (!$this->entitlements->allows('logo_embedding')) {
@@ -125,6 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (locks.advancedBranding) {
         lockPanel(panelByHeading('Design'), 'Advanced branding is not available on the current plan. QR codes will use the Classic design.');
+        ['dot_style', 'finder_style', 'finder_dot_style', 'finder_color', 'caption', 'caption_font_size', 'caption_font_color'].forEach(hideRow);
     }
 
     if (locks.logoEmbedding) {

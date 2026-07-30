@@ -45,9 +45,10 @@ class Plugin {
     }
 
     private function maybeUpgradeDatabase(): void {
-        if (get_option('qrbuzz_db_version') !== QR_BUZZ_VERSION) {
+        if (get_option('qrbuzz_db_version') !== QR_BUZZ_VERSION || get_option('qrbuzz_design_schema_version') !== Installer::DESIGN_SCHEMA_VERSION) {
             Installer::createTables();
             update_option('qrbuzz_db_version', QR_BUZZ_VERSION);
+            update_option('qrbuzz_design_schema_version', Installer::DESIGN_SCHEMA_VERSION);
         }
     }
 }

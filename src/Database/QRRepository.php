@@ -127,7 +127,14 @@ class QRRepository {
             'margin' => $design->margin,
             'logo_attachment_id' => $this->nullableId($design->logoAttachmentId),
             'logo_size' => $design->logoSize,
-        ], ['%d','%s','%s','%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d','%s','%s','%s','%d','%s','%d','%d','%d']);
+            'dot_style' => $design->dotStyle,
+            'finder_style' => $design->finderStyle,
+            'finder_dot_style' => $design->finderDotStyle,
+            'finder_color' => $design->finderColor,
+            'caption' => $design->caption,
+            'caption_font_size' => $design->captionFontSize,
+            'caption_font_color' => $design->captionFontColor,
+        ], ['%d','%s','%s','%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d','%s','%s','%s','%d','%s','%d','%d','%d','%s','%s','%s','%s','%s','%d','%s']);
         return (int) $wpdb->insert_id;
     }
 
@@ -163,8 +170,15 @@ class QRRepository {
             'margin' => $design->margin,
             'logo_attachment_id' => $this->nullableId($design->logoAttachmentId),
             'logo_size' => $design->logoSize,
+            'dot_style' => $design->dotStyle,
+            'finder_style' => $design->finderStyle,
+            'finder_dot_style' => $design->finderDotStyle,
+            'finder_color' => $design->finderColor,
+            'caption' => $design->caption,
+            'caption_font_size' => $design->captionFontSize,
+            'caption_font_color' => $design->captionFontColor,
         ];
-        $result = $wpdb->update(Schema::qrcodesTable(), $data, ['id' => $id, 'workspace_id' => $this->workspaceId()], ['%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d','%s','%s','%s','%d','%s','%d','%d','%d'], ['%d','%d']);
+        $result = $wpdb->update(Schema::qrcodesTable(), $data, ['id' => $id, 'workspace_id' => $this->workspaceId()], ['%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d','%s','%s','%s','%d','%s','%d','%d','%d','%s','%s','%s','%s','%s','%d','%s'], ['%d','%d']);
         if ($result === false) { return false; }
         $this->recordDestinationChanges($before, $data, $userId);
         return true;
@@ -258,5 +272,5 @@ class QRRepository {
     private function nullableString($value): ?string { $value = trim((string) $value); return $value === '' ? null : $value; }
     private function nullableId($value): ?int { $id = absint($value); return $id > 0 ? $id : null; }
     private function payloadData($value): ?string { return wp_json_encode(is_array($value) ? $value : []); }
-    private function allowedOrderby(string $orderby): string { $allowed = ['name' => 'q.name', 'created_at' => 'q.created_at', 'active' => 'q.active', 'scan_count' => 'scan_count', 'type' => 'q.type', 'campaign' => 'c.name']; return $allowed[$orderby] ?? $allowed['created_at']; }
+    private function allowedOrderby(string $orderby): string { $allowed = ['name' => 'q.name', 'created_at' => 'q.created_at', 'updated_at' => 'q.updated_at', 'active' => 'q.active', 'scan_count' => 'scan_count', 'type' => 'q.type', 'campaign' => 'c.name']; return $allowed[$orderby] ?? $allowed['created_at']; }
 }

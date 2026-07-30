@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.6
+- Added a polished authenticated workspace shell with desktop sidebar, mobile drawer, top bar, skip link, active navigation states, workspace identity, and account actions
+- Added a customer app design-token and CSS architecture under `assets/css/`
+- Added customer app JavaScript organisation under `assets/js/` for shell interactions and QR Studio behaviour
+- Added reusable UI helpers for icons, page headers, metric cards, badges, empty states, settings navigation, Library tables/cards, and recent activity lists
+- Added advanced QR Studio design controls for data module style, finder pattern style, finder centre style, finder colour, captions, caption colour, and caption size
+- Added local styled PNG/SVG rendering for advanced QR designs while keeping standard QR rendering on the bundled QR library path
+- Added a design schema upgrade marker so existing v0.9.6 installs can receive the advanced design fields cleanly
+- Redesigned the hosted dashboard with clearer greeting, plan badge, key metrics, quick actions, new-user checklist, recent QR codes, recent scan activity, and usage summary
+- Improved the hosted QR Library with search, campaign/type/status filters, table and card views, remembered view preference, status badges, campaign metadata, scan counts, last scan, updated date, and quick actions
+- Refined hosted QR Studio layout with configuration-first flow, live preview, sticky save actions, loading state, and unsaved-change warning
+- Improved Campaigns, Analytics, Account, Workspace/Brand Kit, and Billing pages for visual consistency and clearer empty/error/success states
+- Updated documentation for the v0.9.6 workspace UI architecture and manual testing checklist
+- Updated plugin metadata for v0.9.6
+
 ## 0.9.5
 - Added hosted frontend routes for registration, login, logout, password recovery, email verification, onboarding, and authenticated `/app/*` pages
 - Added QR Buzz Customer WordPress role while keeping WordPress password/session APIs as the authentication foundation

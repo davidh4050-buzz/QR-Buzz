@@ -2,7 +2,7 @@
 
 QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, campaigns, smart destinations, hosted accounts, subscriptions, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
 
-v0.9.5 is the Hosted Accounts, Onboarding and Subscription Prototype release. It adds the first customer-facing QR Buzz app experience on WordPress-powered hosted routes while preserving the existing WordPress admin plugin experience.
+v0.9.6 is the Workspace Experience & UI Foundations release. It polishes the authenticated QR Buzz workspace with a consistent application shell, design tokens, reusable UI components, responsive navigation, improved dashboard and QR Library views, and clearer empty and success states.
 
 ## Dynamic vs Static QR Codes
 
@@ -30,6 +30,21 @@ Do not install GitHub's automatic source-code ZIP from the green Code button. Th
 If you download a GitHub Actions artifact, unzip that download first. The artifact contains the actual WordPress plugin file named `qr-buzz.zip`; upload that inner ZIP to WordPress.
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
+
+## Features in v0.9.6
+
+- Consistent authenticated application shell for `/app/*` pages with desktop sidebar, mobile drawer, top bar, skip link, active navigation states, workspace identity, and account actions
+- Central CSS design-token layer under `assets/css/` for colours, typography, spacing, shape, shadows, layout, and motion
+- Organised customer app CSS files for reset, layout, components, forms, tables, responsive behaviour, and page-specific styling
+- Organised customer app JavaScript under `assets/js/` for app shell behaviour and QR Studio preview/save interactions
+- Reusable app helpers for icons, page headers, metric cards, badges, empty states, settings navigation, Library tables, Library cards, and recent activity lists
+- Redesigned dashboard with greeting, plan badge, key metrics, quick actions, new-user checklist, recent QR codes, recent scan activity, and usage summary
+- Improved QR Library with search, campaign/type/status filters, table view, card view, remembered view preference, status badges, campaign metadata, scan counts, last-scan and updated-date visibility
+- Refined QR Studio layout with configuration first, live preview beside it on desktop, mobile-friendly single-column behaviour, sticky save actions, preview loading status, and unsaved-change warning
+- Added advanced QR Studio styling controls for data module shape, finder pattern shape, finder centre shape, finder colour, transparent backgrounds, logos, captions, caption colour, and caption size
+- Added local styled PNG and SVG rendering for advanced QR designs, including downloads and live previews
+- More consistent Campaigns, Analytics, Workspace/Brand Kit, Billing, and Account settings layouts
+- Updated UI architecture documentation, component notes, responsive breakpoints, accessibility notes, and manual UI testing guidance
 
 ## Features in v0.9.5
 
@@ -77,7 +92,7 @@ The hosted app is rendered by the plugin and does not require normal customers t
 
 ## Stripe Test Mode
 
-Stripe is test-mode only in v0.9.5.
+Stripe is test-mode only in v0.9.6.
 
 Configure with constants or environment variables:
 
@@ -92,9 +107,9 @@ Webhook endpoint:
 
 ## QR Design Notes
 
-QR Buzz uses the bundled `endroid/qr-code` library for local QR rendering. QR Buzz supports reliable brand styling such as colours, transparent backgrounds, margin control, error correction, and logos.
+QR Buzz uses the bundled `endroid/qr-code` library for local QR rendering, with an additional local renderer for advanced styled designs. QR Buzz supports colours, transparent backgrounds, margin control, error correction, logos, data module shapes, finder pattern shapes, finder centre shapes, finder colours, and captions.
 
-Advanced visual QR artwork, such as custom rounded modules, custom eye patterns, gradients, and complex designer module shapes, is intentionally not included yet. The current focus is branded, readable QR codes that remain suitable for real-world printing and scanning.
+Stylised QR codes should always be tested on phones before printing, especially when using logos, low contrast colours, transparent backgrounds, or dot/circle finder styles.
 
 ## QR Types
 
@@ -183,7 +198,7 @@ composer fix
 ## Release Process
 
 1. Merge the release branch into `main`.
-2. Tag the release, for example `v0.9.5`.
+2. Tag the release, for example `v0.9.6`.
 3. Push the tag to GitHub.
 4. The release workflow installs production dependencies and uploads `qr-buzz.zip` as a build artifact.
 

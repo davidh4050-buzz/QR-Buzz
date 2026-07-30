@@ -1,0 +1,42 @@
+.qrb-studio {
+    align-items: start;
+    display: grid;
+    gap: var(--qrb-space-5);
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+}
+
+.qrb-studio-preview {
+    align-self: start;
+    position: sticky;
+    top: calc(var(--qrb-topbar-height) + var(--qrb-space-4));
+}
+
+.qrb-live-preview {
+    align-items: center;
+    background: #dddddd;
+    border-radius: var(--qrb-radius);
+    display: flex;
+    justify-content: center;
+    min-height: 328px;
+    padding: var(--qrb-space-5);
+}
+
+.qrb-preview {
+    display: block;
+    height: auto;
+    max-width: 260px;
+}
+
+.qrb-preview-status {
+    color: var(--qrb-muted);
+    margin: var(--qrb-space-3) 0;
+}
+
+.qrb-sticky-actions {
+    background: rgba(255, 255, 255, 0.94);
+    border-top: 1px solid var(--qrb-border);
+    bottom: 0;
+    margin: var(--qrb-space-4) calc(var(--qrb-space-5) * -1) calc(var(--qrb-space-5) * -1);
+    padding: var(--qrb-space-4) var(--qrb-space-5);
+    position: sticky;
+}
