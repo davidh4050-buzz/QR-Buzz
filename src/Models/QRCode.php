@@ -33,6 +33,13 @@ class QRCode {
     public int $margin;
     public int $logoAttachmentId;
     public int $logoSize;
+    public string $dotStyle;
+    public string $finderStyle;
+    public string $finderDotStyle;
+    public ?string $finderColor;
+    public string $caption;
+    public int $captionFontSize;
+    public string $captionFontColor;
     public int $scanCount;
     public ?string $lastScan;
 
@@ -66,6 +73,13 @@ class QRCode {
         $qrCode->margin = isset($row->margin) ? (int) $row->margin : 12;
         $qrCode->logoAttachmentId = isset($row->logo_attachment_id) ? (int) $row->logo_attachment_id : 0;
         $qrCode->logoSize = isset($row->logo_size) ? (int) $row->logo_size : 20;
+        $qrCode->dotStyle = isset($row->dot_style) && (string) $row->dot_style !== '' ? (string) $row->dot_style : 'square';
+        $qrCode->finderStyle = isset($row->finder_style) && (string) $row->finder_style !== '' ? (string) $row->finder_style : 'square';
+        $qrCode->finderDotStyle = isset($row->finder_dot_style) && (string) $row->finder_dot_style !== '' ? (string) $row->finder_dot_style : 'square';
+        $qrCode->finderColor = self::nullableString($row->finder_color ?? null);
+        $qrCode->caption = isset($row->caption) ? (string) $row->caption : '';
+        $qrCode->captionFontSize = isset($row->caption_font_size) ? (int) $row->caption_font_size : 16;
+        $qrCode->captionFontColor = isset($row->caption_font_color) && (string) $row->caption_font_color !== '' ? (string) $row->caption_font_color : '#000000';
         $qrCode->scanCount = isset($row->scan_count) ? (int) $row->scan_count : 0;
         $qrCode->lastScan = isset($row->last_scan) && $row->last_scan !== null ? (string) $row->last_scan : null;
         return $qrCode;

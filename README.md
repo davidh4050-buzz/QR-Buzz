@@ -41,6 +41,8 @@ If WordPress shows "The link you followed has expired" while uploading, the serv
 - Redesigned dashboard with greeting, plan badge, key metrics, quick actions, new-user checklist, recent QR codes, recent scan activity, and usage summary
 - Improved QR Library with search, campaign/type/status filters, table view, card view, remembered view preference, status badges, campaign metadata, scan counts, last-scan and updated-date visibility
 - Refined QR Studio layout with configuration first, live preview beside it on desktop, mobile-friendly single-column behaviour, sticky save actions, preview loading status, and unsaved-change warning
+- Added advanced QR Studio styling controls for data module shape, finder pattern shape, finder centre shape, finder colour, transparent backgrounds, logos, captions, caption colour, and caption size
+- Added local styled PNG and SVG rendering for advanced QR designs, including downloads and live previews
 - More consistent Campaigns, Analytics, Workspace/Brand Kit, Billing, and Account settings layouts
 - Updated UI architecture documentation, component notes, responsive breakpoints, accessibility notes, and manual UI testing guidance
 
@@ -105,9 +107,9 @@ Webhook endpoint:
 
 ## QR Design Notes
 
-QR Buzz uses the bundled `endroid/qr-code` library for local QR rendering. QR Buzz supports reliable brand styling such as colours, transparent backgrounds, margin control, error correction, and logos.
+QR Buzz uses the bundled `endroid/qr-code` library for local QR rendering, with an additional local renderer for advanced styled designs. QR Buzz supports colours, transparent backgrounds, margin control, error correction, logos, data module shapes, finder pattern shapes, finder centre shapes, finder colours, and captions.
 
-Advanced visual QR artwork, such as custom rounded modules, custom eye patterns, gradients, and complex designer module shapes, is intentionally not included yet. The current focus is branded, readable QR codes that remain suitable for real-world printing and scanning.
+Stylised QR codes should always be tested on phones before printing, especially when using logos, low contrast colours, transparent backgrounds, or dot/circle finder styles.
 
 ## QR Types
 

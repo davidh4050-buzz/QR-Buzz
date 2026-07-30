@@ -83,6 +83,9 @@
                 qs("[name=background_color]", form).value = option.dataset.background || "#ffffff";
                 qs("[name=margin]", form).value = option.dataset.margin || "12";
                 qs("[name=error_correction]", form).value = option.dataset.error || "H";
+                if (qs("[name=finder_color]", form)) {
+                    qs("[name=finder_color]", form).value = option.dataset.foreground || "#000000";
+                }
             }
         }
         schedulePreview();

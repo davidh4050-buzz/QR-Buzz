@@ -5,6 +5,9 @@
 - Added a customer app design-token and CSS architecture under `assets/css/`
 - Added customer app JavaScript organisation under `assets/js/` for shell interactions and QR Studio behaviour
 - Added reusable UI helpers for icons, page headers, metric cards, badges, empty states, settings navigation, Library tables/cards, and recent activity lists
+- Added advanced QR Studio design controls for data module style, finder pattern style, finder centre style, finder colour, captions, caption colour, and caption size
+- Added local styled PNG/SVG rendering for advanced QR designs while keeping standard QR rendering on the bundled QR library path
+- Added a design schema upgrade marker so existing v0.9.6 installs can receive the advanced design fields cleanly
 - Redesigned the hosted dashboard with clearer greeting, plan badge, key metrics, quick actions, new-user checklist, recent QR codes, recent scan activity, and usage summary
 - Improved the hosted QR Library with search, campaign/type/status filters, table and card views, remembered view preference, status badges, campaign metadata, scan counts, last scan, updated date, and quick actions
 - Refined hosted QR Studio layout with configuration-first flow, live preview, sticky save actions, loading state, and unsaved-change warning

@@ -170,6 +170,7 @@ class HostedAppController {
         $status = in_array((string) ($_POST['status'] ?? 'active'), ['active', 'paused'], true) ? (string) $_POST['status'] : 'active';
         $destination = $type === 'dynamic_url' ? esc_url_raw((string) ($payload['destination_url'] ?? '')) : ($type === 'static_url' ? esc_url_raw((string) ($payload['url'] ?? '')) : '');
         $design = QRDesignSettings::fromPost($_POST, $existing ? QRDesignSettings::fromQrCode($existing) : $this->newDesignDefaults());
+        if (!$this->entitlements->allows('advanced_branding')) { $design = QRDesignSettings::defaults(); }
         if (!$this->entitlements->allows('logo_embedding')) { $design->logoAttachmentId = 0; }
         $settings = ['type' => $type, 'payload_data' => $payload, 'static_payload' => $staticPayload, 'status' => $status, 'fallback_url' => $this->optionalUrl('fallback_url'), 'expires_at' => $this->optionalDateTime('expires_at'), 'scheduled_url' => $this->optionalUrl('scheduled_url'), 'scheduled_start_at' => $this->optionalDateTime('scheduled_start_at'), 'scheduled_end_at' => $this->optionalDateTime('scheduled_end_at'), 'campaign_id' => absint($_POST['campaign_id'] ?? 0), 'design' => $design->toArray()];
         if ($id > 0) { $this->qrCodes->update($id, $name, $destination, $status, $settings, get_current_user_id()); $this->redirect('/app/qr/' . $id . '?saved=1'); }
@@ -313,7 +314,19 @@ class HostedAppController {
         $html .= '</select></label>' . $this->input('Foreground colour', 'foreground_color', $design->foregroundColor, 'color') . $this->input('Background colour', 'background_color', $design->backgroundColor, 'color') . '<label><input type="checkbox" name="transparent_background" value="1" ' . checked($design->transparentBackground, true, false) . '> Transparent background</label><label>Error correction<select name="error_correction">';
         foreach (['L'=>'L - smallest','M'=>'M - balanced','Q'=>'Q - branded','H'=>'H - logo safe'] as $value => $label) { $html .= '<option value="' . esc_attr($value) . '" ' . selected($design->errorCorrection, $value, false) . '>' . esc_html($label) . '</option>'; }
         $logoNote = $this->entitlements->allows('logo_embedding') ? '' : '<p class="qrb-alert">Logo embedding is available on Pro and Business plans.</p>';
-        return $html . '</select></label>' . $this->input('Quiet zone / margin', 'margin', (string) $design->margin, 'number') . $this->logoField($design) . $this->input('Logo size (%)', 'logo_size', (string) $design->logoSize, 'number') . $logoNote . '</fieldset>';
+        $html .= '</select></label>' . $this->input('Quiet zone / margin', 'margin', (string) $design->margin, 'number') . $this->logoField($design) . $this->input('Logo size (%)', 'logo_size', (string) $design->logoSize, 'number') . $logoNote . '</fieldset>';
+        if (!$this->entitlements->allows('advanced_branding')) {
+            return $html . '<fieldset><legend>Advanced style</legend><p class="qrb-alert">Advanced QR styling is available on Pro and Business plans.</p></fieldset>';
+        }
+        $html .= '<fieldset><legend>Advanced style</legend>';
+        $html .= $this->select('Data module style', 'dot_style', $design->dotStyle, ['square' => 'Square', 'dot' => 'Dots', 'rounded' => 'Rounded']);
+        $html .= $this->select('Finder pattern style', 'finder_style', $design->finderStyle, ['square' => 'Square', 'rounded' => 'Rounded', 'circle' => 'Circle']);
+        $html .= $this->select('Finder centre style', 'finder_dot_style', $design->finderDotStyle, ['square' => 'Square', 'rounded' => 'Rounded', 'dot' => 'Dot']);
+        $html .= $this->input('Finder colour', 'finder_color', $design->finderColor ?: $design->foregroundColor, 'color');
+        $html .= $this->input('Caption', 'caption', $design->caption);
+        $html .= $this->input('Caption colour', 'caption_font_color', $design->captionFontColor, 'color');
+        $html .= $this->input('Caption size', 'caption_font_size', (string) $design->captionFontSize, 'number');
+        return $html . '<p class="qrb-help">Stylised QR codes should be tested on phones before printing, especially when using logos or low contrast colours.</p></fieldset>';
     }
 
     private function studioPreview(?QRCode $qr, string $type, array $payload, QRDesignSettings $design): string {
@@ -428,6 +441,7 @@ class HostedAppController {
     private function downloadUrl(int $id, string $format): string { return wp_nonce_url(admin_url('admin-post.php?action=qrbuzz_download_' . $format . '&qr_id=' . $id), 'qrbuzz_download_qr_' . $id); }
     private function input(string $label, string $name, string $value, string $type = 'text'): string { return '<label>' . esc_html($label) . '<input type="' . esc_attr($type) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"></label>'; }
     private function textarea(string $label, string $name, string $value): string { return '<label>' . esc_html($label) . '<textarea name="' . esc_attr($name) . '">' . esc_textarea($value) . '</textarea></label>'; }
+    private function select(string $label, string $name, string $selected, array $options): string { $html = '<label>' . esc_html($label) . '<select name="' . esc_attr($name) . '">'; foreach ($options as $value => $optionLabel) { $html .= '<option value="' . esc_attr((string) $value) . '" ' . selected($selected, $value, false) . '>' . esc_html((string) $optionLabel) . '</option>'; } return $html . '</select></label>'; }
     private function logoField(QRDesignSettings $design): string { $allowed = $this->entitlements->allows('logo_embedding'); $image = $allowed && $design->logoAttachmentId ? wp_get_attachment_image($design->logoAttachmentId, 'thumbnail') : ''; return '<label>Logo<input type="hidden" class="qrb-logo-id" name="logo_attachment_id" value="' . esc_attr($allowed ? (string) $design->logoAttachmentId : '0') . '"><span class="qrb-logo-actions"><button type="button" class="qrb-button qrb-select-logo" ' . disabled(!$allowed, true, false) . '>Choose logo</button><button type="button" class="qrb-button qrb-remove-logo" ' . disabled(!$allowed || !$design->logoAttachmentId, true, false) . '>Remove logo</button></span><span class="qrb-logo-preview">' . wp_kses_post($image) . '</span></label>'; }
     private function newDesignDefaults(): QRDesignSettings { $design = $this->brandKit->designDefaults(); $design->logoAttachmentId = 0; return $design; }
     private function optionalUrl(string $field): ?string { $url = esc_url_raw((string) ($_POST[$field] ?? '')); return trim($url) === '' ? null : $url; }

@@ -2,11 +2,13 @@
 namespace QRBuzz\Database;
 
 class Installer {
+    public const DESIGN_SCHEMA_VERSION = '2026-07-30-advanced-design';
 
     public static function activate(): void {
         self::createTables();
         self::registerRoles();
         update_option('qrbuzz_db_version', QR_BUZZ_VERSION);
+        update_option('qrbuzz_design_schema_version', self::DESIGN_SCHEMA_VERSION);
     }
 
     public static function createTables(): void {
@@ -75,6 +77,13 @@ class Installer {
             margin int(11) NOT NULL DEFAULT 12,
             logo_attachment_id bigint(20) unsigned NULL,
             logo_size int(11) NOT NULL DEFAULT 20,
+            dot_style varchar(20) NOT NULL DEFAULT 'square',
+            finder_style varchar(20) NOT NULL DEFAULT 'square',
+            finder_dot_style varchar(20) NOT NULL DEFAULT 'square',
+            finder_color varchar(7) NULL,
+            caption text NULL,
+            caption_font_size int(11) NOT NULL DEFAULT 16,
+            caption_font_color varchar(7) NOT NULL DEFAULT '#000000',
             PRIMARY KEY  (id),
             UNIQUE KEY shortcode (shortcode),
             KEY workspace_id (workspace_id),
@@ -280,5 +289,5 @@ class Installer {
     private static function backfillStatuses(): void { global $wpdb; $table = Schema::qrcodesTable(); $wpdb->query("UPDATE {$table} SET status = 'active' WHERE status = '' OR status IS NULL"); $wpdb->query("UPDATE {$table} SET status = 'paused' WHERE active = 0 AND status = 'active'"); }
     private static function backfillTypes(): void { global $wpdb; $table = Schema::qrcodesTable(); $wpdb->query("UPDATE {$table} SET type = 'dynamic_url' WHERE type = '' OR type IS NULL"); $wpdb->query("UPDATE {$table} SET is_trackable = 1 WHERE type = 'dynamic_url'"); $wpdb->query("UPDATE {$table} SET static_payload = destination_url WHERE type = 'dynamic_url' AND (static_payload IS NULL OR static_payload = '')"); }
     private static function backfillCampaigns(): void { global $wpdb; $wpdb->query('UPDATE ' . Schema::qrcodesTable() . ' SET campaign_id = NULL WHERE campaign_id = 0'); }
-    private static function backfillDesignSettings(): void { global $wpdb; $table = Schema::qrcodesTable(); $wpdb->query("UPDATE {$table} SET theme = 'classic' WHERE theme = '' OR theme IS NULL"); $wpdb->query("UPDATE {$table} SET foreground_color = '#000000' WHERE foreground_color = '' OR foreground_color IS NULL"); $wpdb->query("UPDATE {$table} SET background_color = '#ffffff' WHERE background_color = '' OR background_color IS NULL"); $wpdb->query("UPDATE {$table} SET error_correction = 'H' WHERE error_correction = '' OR error_correction IS NULL"); $wpdb->query("UPDATE {$table} SET margin = 12 WHERE margin IS NULL"); $wpdb->query("UPDATE {$table} SET logo_size = 20 WHERE logo_size IS NULL OR logo_size = 0"); $wpdb->query("UPDATE {$table} SET logo_attachment_id = NULL WHERE logo_attachment_id = 0"); }
+    private static function backfillDesignSettings(): void { global $wpdb; $table = Schema::qrcodesTable(); $wpdb->query("UPDATE {$table} SET theme = 'classic' WHERE theme = '' OR theme IS NULL"); $wpdb->query("UPDATE {$table} SET foreground_color = '#000000' WHERE foreground_color = '' OR foreground_color IS NULL"); $wpdb->query("UPDATE {$table} SET background_color = '#ffffff' WHERE background_color = '' OR background_color IS NULL"); $wpdb->query("UPDATE {$table} SET error_correction = 'H' WHERE error_correction = '' OR error_correction IS NULL"); $wpdb->query("UPDATE {$table} SET margin = 12 WHERE margin IS NULL"); $wpdb->query("UPDATE {$table} SET logo_size = 20 WHERE logo_size IS NULL OR logo_size = 0"); $wpdb->query("UPDATE {$table} SET logo_attachment_id = NULL WHERE logo_attachment_id = 0"); $wpdb->query("UPDATE {$table} SET dot_style = 'square' WHERE dot_style = '' OR dot_style IS NULL"); $wpdb->query("UPDATE {$table} SET finder_style = 'square' WHERE finder_style = '' OR finder_style IS NULL"); $wpdb->query("UPDATE {$table} SET finder_dot_style = 'square' WHERE finder_dot_style = '' OR finder_dot_style IS NULL"); $wpdb->query("UPDATE {$table} SET caption_font_size = 16 WHERE caption_font_size IS NULL OR caption_font_size = 0"); $wpdb->query("UPDATE {$table} SET caption_font_color = '#000000' WHERE caption_font_color = '' OR caption_font_color IS NULL"); }
 }
