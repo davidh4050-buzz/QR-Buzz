@@ -267,12 +267,19 @@ class QRGenerator {
             return;
         }
 
-        $logoWidth = max(24, (int) round($outerSize * ($design->logoSize / 100)));
+        $boxSize = max(24, (int) round($outerSize * ($design->logoSize / 100)));
+        $sourceWidth = imagesx($logo);
+        $sourceHeight = imagesy($logo);
+        $ratio = $sourceWidth > 0 && $sourceHeight > 0 ? min($boxSize / $sourceWidth, $boxSize / $sourceHeight) : 1;
+        $logoWidth = max(1, (int) round($sourceWidth * $ratio));
+        $logoHeight = max(1, (int) round($sourceHeight * $ratio));
+        $boxX = (int) round(($outerSize - $boxSize) / 2);
+        $boxY = (int) round(($outerSize - $boxSize) / 2);
         $x = (int) round(($outerSize - $logoWidth) / 2);
-        $y = (int) round(($outerSize - $logoWidth) / 2);
-        $padding = max(4, (int) round($logoWidth * 0.12));
-        imagefilledrectangle($image, $x - $padding, $y - $padding, $x + $logoWidth + $padding, $y + $logoWidth + $padding, $background);
-        imagecopyresampled($image, $logo, $x, $y, 0, 0, $logoWidth, $logoWidth, imagesx($logo), imagesy($logo));
+        $y = (int) round(($outerSize - $logoHeight) / 2);
+        $padding = max(4, (int) round($boxSize * 0.12));
+        imagefilledrectangle($image, $boxX - $padding, $boxY - $padding, $boxX + $boxSize + $padding, $boxY + $boxSize + $padding, $background);
+        imagecopyresampled($image, $logo, $x, $y, 0, 0, $logoWidth, $logoHeight, $sourceWidth, $sourceHeight);
         imagedestroy($logo);
     }
 

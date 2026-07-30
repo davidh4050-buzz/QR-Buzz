@@ -224,7 +224,7 @@ class AdminPage {
         echo '<p><label>Caption size<br><input type="number" min="8" max="40" name="caption_font_size" value="' . esc_attr($design->captionFontSize) . '" /></label></p>';
         echo '</div><table class="form-table"><tbody>';
         $this->logoField('Logo', 'logo_attachment_id', $design->logoAttachmentId);
-        echo '</tbody></table><p class="description">Logos can reduce scan reliability. Use high error correction and test before printing. PNG downloads support raster logos; SVG logo embedding depends on the uploaded image format.</p></div>';
+        echo '</tbody></table><p class="description">Square logo artwork usually scans best. Non-square logos are fitted without stretching. Use high error correction and test before printing. PNG downloads support raster logos; SVG logo embedding depends on the uploaded image format.</p></div>';
     }
 
     private function renderDownloads(QRCode $qrCode): void {
