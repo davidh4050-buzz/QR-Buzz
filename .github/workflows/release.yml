@@ -14,6 +14,7 @@ on:
       - v0.8.0-design-identity
       - v0.9.0-platform-foundations
       - v0.9.5-hosted-onboarding
+      - v0.9.6-workspace-ui
     tags:
       - 'v*'
 

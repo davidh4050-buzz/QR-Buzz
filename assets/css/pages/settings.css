@@ -1,0 +1,5 @@
+.qrb-card[aria-label="Settings sections"] {
+    position: sticky;
+    top: calc(var(--qrb-topbar-height) + var(--qrb-space-3));
+    z-index: 10;
+}

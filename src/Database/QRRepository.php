@@ -258,5 +258,5 @@ class QRRepository {
     private function nullableString($value): ?string { $value = trim((string) $value); return $value === '' ? null : $value; }
     private function nullableId($value): ?int { $id = absint($value); return $id > 0 ? $id : null; }
     private function payloadData($value): ?string { return wp_json_encode(is_array($value) ? $value : []); }
-    private function allowedOrderby(string $orderby): string { $allowed = ['name' => 'q.name', 'created_at' => 'q.created_at', 'active' => 'q.active', 'scan_count' => 'scan_count', 'type' => 'q.type', 'campaign' => 'c.name']; return $allowed[$orderby] ?? $allowed['created_at']; }
+    private function allowedOrderby(string $orderby): string { $allowed = ['name' => 'q.name', 'created_at' => 'q.created_at', 'updated_at' => 'q.updated_at', 'active' => 'q.active', 'scan_count' => 'scan_count', 'type' => 'q.type', 'campaign' => 'c.name']; return $allowed[$orderby] ?? $allowed['created_at']; }
 }
