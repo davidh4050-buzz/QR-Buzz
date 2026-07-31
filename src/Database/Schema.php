@@ -13,4 +13,10 @@ class Schema {
     public static function profilesTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_user_profiles'; }
     public static function subscriptionsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_subscriptions'; }
     public static function webhookEventsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_webhook_events'; }
+    public static function auditEventsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_audit_events'; }
+    public static function platformEventsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_platform_events'; }
+    public static function applicationErrorsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_application_errors'; }
+    public static function webhookLogsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_webhook_logs'; }
+    public static function featureFlagsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_feature_flags'; }
+    public static function diagnosticSnapshotsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_diagnostic_snapshots'; }
 }

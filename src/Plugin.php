@@ -14,6 +14,8 @@ use QRBuzz\Billing\WebhookController;
 use QRBuzz\Core\Requirements;
 use QRBuzz\Database\Installer;
 use QRBuzz\Database\QRRepository;
+use QRBuzz\Platform\PlatformAdminController;
+use QRBuzz\Platform\PlatformErrorHandler;
 use QRBuzz\REST\RestController;
 use QRBuzz\Redirect\RedirectHandler;
 
@@ -31,6 +33,8 @@ class Plugin {
         (new RestController())->init();
         (new WebhookController())->init();
         (new HostedAppController())->init();
+        (new PlatformErrorHandler())->init();
+        (new PlatformAdminController())->init();
 
         if (is_admin()) {
             (new PlatformPage())->init();

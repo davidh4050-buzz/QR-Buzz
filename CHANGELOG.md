@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.7
+- Added dedicated `/platform-admin/*` platform administration area with QR Buzz application styling
+- Added `qrbuzz_manage_platform` capability and QR Buzz Platform Admin role
+- Added platform overview dashboard with operational metrics, attention-required card, recent activity, and "What's happening today?" observations
+- Added platform-wide Users, Workspaces, Subscriptions, QR Inspector, Campaigns, Product Analytics, System Health, Diagnostics, Webhooks, Errors, Audit Log, Feature Flags, and Settings sections
+- Added custom tables for audit events, platform activity events, application errors, webhook logs, feature flags, and diagnostic snapshots
+- Added sanitised support diagnostics and safe support actions for verification email resend, onboarding reset, workspace suspension/reactivation, test plan assignment, webhook retry review, error status updates, and diagnostics snapshots
+- Added Stripe webhook diagnostic logging without storing raw payloads
+- Added product activity event recording for registration, workspace creation, onboarding completion, QR create/update/download, campaign create/update, and subscription changes
+- Added CSV exports for key platform administration views with capability checks and spreadsheet formula protection
+- Updated documentation for platform administration, capability setup, event logging, feature flags, diagnostics, and retention guidance
+- Updated plugin metadata for v0.9.7
+
 ## 0.9.6
 - Added a polished authenticated workspace shell with desktop sidebar, mobile drawer, top bar, skip link, active navigation states, workspace identity, and account actions
 - Added a customer app design-token and CSS architecture under `assets/css/`
