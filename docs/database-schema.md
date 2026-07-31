@@ -70,6 +70,30 @@ Stores Smart Destination rules. v0.9.0 adds `workspace_id` and keeps v0.7+ time-
 
 Stores destination and rule history entries. This remains linked to QR assets by `qr_id`.
 
+### qrbuzz_audit_events
+
+Introduced in v0.9.7. Stores append-oriented administrator and support actions with actor, related workspace/user/entity, redacted before/after data, metadata, and timestamp.
+
+### qrbuzz_platform_events
+
+Introduced in v0.9.7. Stores meaningful product activity events for platform analytics and "What's happening today?" observations.
+
+### qrbuzz_application_errors
+
+Introduced in v0.9.7. Stores grouped, sanitised QR Buzz application errors with severity, category, occurrence count, status, and timestamps.
+
+### qrbuzz_webhook_logs
+
+Introduced in v0.9.7. Stores Stripe webhook diagnostic records without retaining full raw payloads.
+
+### qrbuzz_feature_flags
+
+Introduced in v0.9.7. Stores lightweight global/workspace/user feature flags. Flags do not replace plan entitlements.
+
+### qrbuzz_diagnostic_snapshots
+
+Introduced in v0.9.7. Stores sanitised support diagnostics snapshots.
+
 ## Upgrade behaviour
 
 On activation or version upgrade, `Installer::activate()` runs `dbDelta`, creates the default workspace if required, and backfills missing `workspace_id` values for QR assets, campaigns, and destination rules.

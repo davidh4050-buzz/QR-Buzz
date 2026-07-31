@@ -2,14 +2,17 @@
 namespace QRBuzz\Database;
 
 use QRBuzz\Models\Campaign;
+use QRBuzz\Platform\PlatformEventRepository;
 use QRBuzz\Workspace\WorkspaceService;
 
 class CampaignRepository {
 
     private WorkspaceService $workspaces;
+    private PlatformEventRepository $events;
 
-    public function __construct(?WorkspaceService $workspaces = null) {
+    public function __construct(?WorkspaceService $workspaces = null, ?PlatformEventRepository $events = null) {
         $this->workspaces = $workspaces ?: new WorkspaceService();
+        $this->events = $events ?: new PlatformEventRepository();
     }
 
     /** @return Campaign[] */
@@ -40,13 +43,17 @@ class CampaignRepository {
         $now = current_time('mysql');
         $slug = $this->uniqueSlug($name);
         $wpdb->insert(Schema::campaignsTable(), ['workspace_id' => $this->workspaceId(), 'name' => $name, 'slug' => $slug, 'description' => $description, 'status' => 'active', 'created_at' => $now, 'updated_at' => $now], ['%d', '%s', '%s', '%s', '%s', '%s', '%s']);
-        return (int) $wpdb->insert_id;
+        $id = (int) $wpdb->insert_id;
+        if ($id > 0) { $this->events->record('campaign_created', ['user_id' => get_current_user_id(), 'workspace_id' => $this->workspaceId(), 'object_type' => 'campaign', 'object_id' => $id]); }
+        return $id;
     }
 
     public function update(int $id, string $name, string $description, string $status): bool {
         global $wpdb;
         $status = in_array($status, ['active', 'archived'], true) ? $status : 'active';
-        return $wpdb->update(Schema::campaignsTable(), ['name' => $name, 'description' => $description, 'status' => $status, 'updated_at' => current_time('mysql')], ['id' => $id, 'workspace_id' => $this->workspaceId()], ['%s', '%s', '%s', '%s'], ['%d', '%d']) !== false;
+        $result = $wpdb->update(Schema::campaignsTable(), ['name' => $name, 'description' => $description, 'status' => $status, 'updated_at' => current_time('mysql')], ['id' => $id, 'workspace_id' => $this->workspaceId()], ['%s', '%s', '%s', '%s'], ['%d', '%d']) !== false;
+        if ($result) { $this->events->record('campaign_activated', ['user_id' => get_current_user_id(), 'workspace_id' => $this->workspaceId(), 'object_type' => 'campaign', 'object_id' => $id, 'metadata' => ['status' => $status]]); }
+        return $result;
     }
 
     public function setStatus(int $id, string $status): bool {

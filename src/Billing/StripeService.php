@@ -2,15 +2,21 @@
 namespace QRBuzz\Billing;
 
 use QRBuzz\Database\WorkspaceRepository;
+use QRBuzz\Platform\PlatformEventRepository;
+use QRBuzz\Platform\WebhookLogRepository;
 
 class StripeService {
 
     private SubscriptionRepository $subscriptions;
     private WorkspaceRepository $workspaces;
+    private WebhookLogRepository $webhookLogs;
+    private PlatformEventRepository $events;
 
-    public function __construct(?SubscriptionRepository $subscriptions = null, ?WorkspaceRepository $workspaces = null) {
+    public function __construct(?SubscriptionRepository $subscriptions = null, ?WorkspaceRepository $workspaces = null, ?WebhookLogRepository $webhookLogs = null, ?PlatformEventRepository $events = null) {
         $this->subscriptions = $subscriptions ?: new SubscriptionRepository();
         $this->workspaces = $workspaces ?: new WorkspaceRepository();
+        $this->webhookLogs = $webhookLogs ?: new WebhookLogRepository();
+        $this->events = $events ?: new PlatformEventRepository();
     }
 
     public function configured(): bool { return $this->secretKey() !== '' && ($this->priceId('pro') !== '' || $this->priceId('business') !== ''); }
@@ -51,12 +57,20 @@ class StripeService {
         $event = $this->verifyEvent($payload, $signature);
         if (is_wp_error($event)) { return $event; }
         $id = (string) ($event['id'] ?? ''); $type = (string) ($event['type'] ?? '');
-        if (!$id || !$this->subscriptions->recordWebhook('stripe', $id, $type)) { return true; }
         $object = $event['data']['object'] ?? [];
-        if ($type === 'checkout.session.completed') { $this->handleCheckout($object); }
-        if (str_starts_with($type, 'customer.subscription.')) { $this->handleSubscription($object); }
-        if ($type === 'invoice.payment_failed') { $this->handleInvoiceState($object, 'past_due'); }
-        if ($type === 'invoice.paid') { $this->handleInvoiceState($object, 'active'); }
+        $workspaceId = absint($object['metadata']['workspace_id'] ?? $object['client_reference_id'] ?? 0);
+        $this->webhookLogs->received('stripe', $id, $type, ['workspace_id' => $workspaceId, 'stripe_object' => (string) ($object['object'] ?? '')]);
+        if (!$id || !$this->subscriptions->recordWebhook('stripe', $id, $type)) { return true; }
+        try {
+            if ($type === 'checkout.session.completed') { $this->handleCheckout($object); }
+            if (str_starts_with($type, 'customer.subscription.')) { $this->handleSubscription($object); }
+            if ($type === 'invoice.payment_failed') { $this->handleInvoiceState($object, 'past_due'); }
+            if ($type === 'invoice.paid') { $this->handleInvoiceState($object, 'active'); }
+            $this->webhookLogs->processed('stripe', $id, 'processed');
+        } catch (\Throwable $exception) {
+            $this->webhookLogs->processed('stripe', $id, 'failed', $exception->getMessage());
+            throw $exception;
+        }
         return true;
     }
 
@@ -78,6 +92,7 @@ class StripeService {
         $planKey = sanitize_key((string) ($session['metadata']['plan_key'] ?? 'pro'));
         $this->subscriptions->upsert($workspaceId, ['plan_key' => $planKey, 'status' => 'active', 'stripe_customer_id' => (string) ($session['customer'] ?? ''), 'stripe_subscription_id' => (string) ($session['subscription'] ?? ''), 'stripe_checkout_session_id' => (string) ($session['id'] ?? '')]);
         $this->workspaces->updatePlan($workspaceId, $planKey);
+        $this->events->record('subscription_started', ['workspace_id' => $workspaceId, 'metadata' => ['plan_key' => $planKey]]);
     }
 
     private function handleSubscription(array $subscription): void {
@@ -89,6 +104,7 @@ class StripeService {
         $status = sanitize_key((string) ($subscription['status'] ?? 'active'));
         $this->subscriptions->upsert($workspaceId, ['plan_key' => $planKey, 'status' => $status, 'stripe_customer_id' => (string) ($subscription['customer'] ?? ($existing ? $existing->stripe_customer_id : '')), 'stripe_subscription_id' => (string) ($subscription['id'] ?? ''), 'current_period_start' => $this->dateFromTimestamp($subscription['current_period_start'] ?? null), 'current_period_end' => $this->dateFromTimestamp($subscription['current_period_end'] ?? null), 'cancel_at_period_end' => !empty($subscription['cancel_at_period_end'])]);
         $this->workspaces->updatePlan($workspaceId, in_array($status, ['trialing', 'active'], true) ? $planKey : 'free');
+        $this->events->record('subscription_changed', ['workspace_id' => $workspaceId, 'metadata' => ['plan_key' => $planKey, 'status' => $status]]);
     }
 
     private function handleInvoiceState(array $invoice, string $status): void {

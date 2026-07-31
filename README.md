@@ -2,7 +2,7 @@
 
 QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, campaigns, smart destinations, hosted accounts, subscriptions, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
 
-v0.9.6 is the Workspace Experience & UI Foundations release. It polishes the authenticated QR Buzz workspace with a consistent application shell, design tokens, reusable UI components, responsive navigation, improved dashboard and QR Library views, and clearer empty and success states.
+v0.9.7 is the Platform Administration, Diagnostics & Operations release. It adds a dedicated `/platform-admin/*` environment for authorised QR Buzz platform administrators to inspect users, workspaces, subscriptions, QR assets, campaigns, product usage, health checks, webhooks, errors, audit events, feature flags, and support diagnostics.
 
 ## Dynamic vs Static QR Codes
 
@@ -30,6 +30,19 @@ Do not install GitHub's automatic source-code ZIP from the green Code button. Th
 If you download a GitHub Actions artifact, unzip that download first. The artifact contains the actual WordPress plugin file named `qr-buzz.zip`; upload that inner ZIP to WordPress.
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
+
+## Features in v0.9.7
+
+- Dedicated QR Buzz platform administration shell under `/platform-admin/*`
+- Dedicated `qrbuzz_manage_platform` capability and QR Buzz Platform Admin role
+- Platform overview dashboard with users, workspaces, QR assets, scans, paid subscriptions, failed webhooks, unresolved errors, attention-required items, recent activity, and "What's happening today?" observations
+- Platform-wide Users, Workspaces, Subscriptions, QR Inspector, Campaigns, Product Analytics, System Health, Diagnostics, Webhooks, Errors, Audit Log, Feature Flags, and Settings sections
+- New platform data tables for audit events, activity events, webhook logs, application errors, feature flags, and diagnostic snapshots
+- Sanitised support diagnostics for platform and workspace support
+- Safe support actions for verification resend, onboarding reset, workspace suspension/reactivation, test plan assignment, webhook retry review, error status changes, and diagnostics snapshots
+- CSV exports for core platform views with current filters and spreadsheet formula protection
+- Stripe webhook diagnostic logging without storing raw webhook payloads
+- Product activity events for registration, workspace creation, onboarding, QR creation/update/download, campaign creation/update, and subscription changes
 
 ## Features in v0.9.6
 
@@ -90,9 +103,33 @@ Authenticated routes:
 
 The hosted app is rendered by the plugin and does not require normal customers to use WordPress admin.
 
+## Platform Admin Routes
+
+Platform administration routes require the `qrbuzz_manage_platform` capability:
+
+- `/platform-admin/dashboard`
+- `/platform-admin/users`
+- `/platform-admin/users/{id}`
+- `/platform-admin/workspaces`
+- `/platform-admin/workspaces/{id}`
+- `/platform-admin/subscriptions`
+- `/platform-admin/qrs`
+- `/platform-admin/qrs/{id}`
+- `/platform-admin/campaigns`
+- `/platform-admin/product-analytics`
+- `/platform-admin/system-health`
+- `/platform-admin/diagnostics`
+- `/platform-admin/webhooks`
+- `/platform-admin/errors`
+- `/platform-admin/audit-log`
+- `/platform-admin/feature-flags`
+- `/platform-admin/settings`
+
+On activation, QR Buzz grants `qrbuzz_manage_platform` to WordPress administrators and creates a `qrbuzz_platform_admin` role. To grant access manually, assign that role or add the capability to a trusted support/admin user. To revoke access, remove the role or capability.
+
 ## Stripe Test Mode
 
-Stripe is test-mode only in v0.9.6.
+Stripe is test-mode only in v0.9.7.
 
 Configure with constants or environment variables:
 
@@ -198,7 +235,7 @@ composer fix
 ## Release Process
 
 1. Merge the release branch into `main`.
-2. Tag the release, for example `v0.9.6`.
+2. Tag the release, for example `v0.9.7`.
 3. Push the tag to GitHub.
 4. The release workflow installs production dependencies and uploads `qr-buzz.zip` as a build artifact.
 

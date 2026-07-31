@@ -3,17 +3,20 @@ namespace QRBuzz\Account;
 
 use QRBuzz\Billing\SubscriptionRepository;
 use QRBuzz\Database\WorkspaceRepository;
+use QRBuzz\Platform\PlatformEventRepository;
 
 class AuthService {
 
     private ProfileRepository $profiles;
     private WorkspaceRepository $workspaces;
     private SubscriptionRepository $subscriptions;
+    private PlatformEventRepository $events;
 
-    public function __construct(?ProfileRepository $profiles = null, ?WorkspaceRepository $workspaces = null, ?SubscriptionRepository $subscriptions = null) {
+    public function __construct(?ProfileRepository $profiles = null, ?WorkspaceRepository $workspaces = null, ?SubscriptionRepository $subscriptions = null, ?PlatformEventRepository $events = null) {
         $this->profiles = $profiles ?: new ProfileRepository();
         $this->workspaces = $workspaces ?: new WorkspaceRepository();
         $this->subscriptions = $subscriptions ?: new SubscriptionRepository();
+        $this->events = $events ?: new PlatformEventRepository();
     }
 
     public function register(array $data) {
@@ -31,6 +34,8 @@ class AuthService {
         $workspaceId = $this->workspaces->createForUser((int) $userId, $first . "'s Workspace", 'free', ['onboarding_status' => 'pending', 'onboarding_step' => 'plan']);
         $this->subscriptions->ensureFree($workspaceId, (int) $userId);
         $this->sendVerification((int) $userId);
+        $this->events->record('user_registered', ['user_id' => (int) $userId, 'workspace_id' => $workspaceId]);
+        $this->events->record('workspace_created', ['user_id' => (int) $userId, 'workspace_id' => $workspaceId]);
         wp_set_current_user((int) $userId);
         wp_set_auth_cookie((int) $userId, true, is_ssl());
         return (int) $userId;
