@@ -8,6 +8,9 @@ use QRBuzz\QR\Design\QRDesignSettings;
 use QRBuzz\QR\QRGenerator;
 use QRBuzz\QR\Types\QRPayloadService;
 use QRBuzz\QR\Types\QRTypeRegistry;
+use QRBuzz\Redirect\DestinationResolver;
+use QRBuzz\SmartDestinations\RuleConditionFormatter;
+use QRBuzz\SmartDestinations\RuleConflictAnalyzer;
 
 class PlatformAdminController {
 
@@ -21,6 +24,9 @@ class PlatformAdminController {
     private HealthCheckService $health;
     private QRGenerator $generator;
     private QRPayloadService $payloads;
+    private DestinationResolver $resolver;
+    private RuleConditionFormatter $conditionFormatter;
+    private RuleConflictAnalyzer $conflicts;
 
     public function __construct() {
         $this->repo = new PlatformAdminRepository();
@@ -33,6 +39,9 @@ class PlatformAdminController {
         $this->health = new HealthCheckService();
         $this->generator = new QRGenerator();
         $this->payloads = new QRPayloadService(new QRTypeRegistry(), $this->generator);
+        $this->resolver = new DestinationResolver();
+        $this->conditionFormatter = new RuleConditionFormatter();
+        $this->conflicts = new RuleConflictAnalyzer();
     }
 
     public function init(): void { add_action('template_redirect', [$this, 'route'], 0); }
@@ -150,13 +159,33 @@ class PlatformAdminController {
         $qr = $this->repo->qrDetail($id); if (!$qr) { return $this->empty('QR code not found', '/platform-admin/qrs'); }
         $payload = $this->payloads->payloadForQrCode($qr);
         try { $preview = '<img class="qrb-preview" src="' . esc_attr($this->generator->generatePngDataUri($payload, 220, QRDesignSettings::fromQrCode($qr))) . '" alt="">'; } catch (\Throwable $e) { $preview = '<p>Preview unavailable.</p>'; }
-        $resolution = $this->resolutionSummary($qr);
+        $rules = $this->repo->destinationRulesForQr($qr->id, $qr->workspaceId);
+        $resolution = $this->platformResolutionSummary($qr, $rules);
         $html = $this->header('QR: ' . $qr->name, 'Identity, design, analytics and redirect diagnostics.', '<a class="qrb-button" href="/platform-admin/qrs">QR Inspector</a>');
         $html .= '<div class="qrb-card qrb-detail">' . $preview . '<div><p><strong>ID:</strong> ' . esc_html((string) $qr->id) . '</p><p><strong>Shortcode:</strong> ' . esc_html($qr->shortcode) . '</p><p><strong>Type:</strong> ' . esc_html($qr->type) . '</p><p><strong>Status:</strong> ' . esc_html($qr->effectiveStatus()) . '</p><p><strong>Tracking URL:</strong> ' . esc_html($qr->isTrackable() ? $this->generator->trackingUrl($qr->shortcode) : 'Static QR') . '</p></div></div>';
         $html .= $this->metrics([['Scans',$qr->scanCount],['Last scan',$qr->lastScan ?: '-'],['Resolver result',$resolution['result']],['Reason',$resolution['reason']]]);
         $html .= '<div class="qrb-dashboard-grid"><section class="qrb-card"><h2>Current behaviour</h2><p><strong>Encoded content:</strong> ' . esc_html($payload) . '</p><p><strong>Destination:</strong> ' . esc_html($resolution['destination']) . '</p><p><strong>Fallback:</strong> ' . esc_html($qr->fallbackUrl ?: '-') . '</p><p><strong>Expiry:</strong> ' . esc_html($qr->expiresAt ?: '-') . '</p></section><section class="qrb-card"><h2>Design</h2><p>' . esc_html($qr->foregroundColor . ' on ' . $qr->backgroundColor) . '</p><p>Dots: ' . esc_html($qr->dotStyle) . '; Finder: ' . esc_html($qr->finderStyle) . '; Error correction: ' . esc_html($qr->errorCorrection) . '</p><p>Logo: ' . esc_html($qr->logoAttachmentId ? 'Yes' : 'No') . '</p></section></div>';
-        $html .= '<section class="qrb-card"><h2>Recent scans</h2>' . $this->scanTable($this->repo->recentScansForQr($id)) . '</section>';
+        if ($qr->isTrackable()) {
+            $warnings = $this->conflicts->analyze($qr, $rules);
+            $html .= '<section class="qrb-card"><h2>Smart Destination rules</h2><p><strong>Matched rule:</strong> ' . esc_html($resolution['matched_rule'] ?: 'None') . '</p><div class="qrb-table-wrap"><table class="qrb-table"><thead><tr><th>Priority</th><th>Name</th><th>Status</th><th>Conditions</th><th>Destination</th><th>Warnings</th></tr></thead><tbody>';
+            foreach ($rules as $rule) { $ruleWarnings = array_filter($warnings, static fn(array $warning): bool => $warning['rule_id'] === $rule->id); $html .= '<tr><td>' . esc_html((string) $rule->priority) . '</td><td>' . esc_html($rule->name) . ($resolution['matched_rule_id'] === $rule->id ? '<br>' . $this->badge('Currently matching', 'success') : '') . '</td><td>' . esc_html($rule->status) . '</td><td>' . esc_html($this->conditionFormatter->format($rule)) . '</td><td>' . esc_html($rule->destinationUrl) . '</td><td>' . esc_html(implode(' ', array_column($ruleWarnings, 'message')) ?: '—') . '</td></tr>'; }
+            if (!$rules) { $html .= '<tr><td colspan="6">No Smart Destination rules.</td></tr>'; }
+            $html .= '</tbody></table></div></section>';
+        }
+        $history = $this->repo->destinationHistoryForQr($qr->id, $qr->workspaceId);
+        $html .= '<section class="qrb-card"><h2>Recent rule history</h2><ul class="qrb-activity-list">';
+        foreach ($history as $event) { $html .= '<li><strong>' . esc_html(ucwords(str_replace('_', ' ', $event->change_type))) . '</strong><span>' . esc_html(($event->actor_name ?: 'System') . ' · ' . $event->changed_at) . '</span><small>' . esc_html(($event->previous_value ?: '—') . ' → ' . ($event->new_value ?: '—')) . '</small></li>'; }
+        $html .= '</ul></section><section class="qrb-card"><h2>Recent scans</h2>' . $this->scanTable($this->repo->recentScansForQr($id)) . '</section>';
         return $html;
+    }
+
+    private function platformResolutionSummary($qr, array $rules): array {
+        if (!$qr->isTrackable()) { return ['result'=>'Static payload','reason'=>'static','destination'=>$qr->staticPayload ?: '-','matched_rule'=>'','matched_rule_id'=>null]; }
+        if ($qr->isExpired()) { return ['result'=>$qr->fallbackUrl ? 'Fallback redirect' : 'Message','reason'=>'expired','destination'=>$qr->fallbackUrl ?: 'Expired message','matched_rule'=>'','matched_rule_id'=>null]; }
+        if ($qr->status === 'paused' || !$qr->active) { return ['result'=>$qr->fallbackUrl ? 'Fallback redirect' : 'Message','reason'=>'paused','destination'=>$qr->fallbackUrl ?: 'Paused message','matched_rule'=>'','matched_rule_id'=>null]; }
+        $timestamp = current_time('timestamp', true);
+        foreach ($rules as $rule) { if ($this->resolver->ruleMatches($rule, $timestamp)) { return ['result'=>'Redirect','reason'=>'smart_rule','destination'=>$rule->destinationUrl,'matched_rule'=>$rule->name,'matched_rule_id'=>$rule->id]; } }
+        return $this->resolutionSummary($qr) + ['matched_rule'=>'','matched_rule_id'=>null];
     }
 
     private function campaigns(): string {

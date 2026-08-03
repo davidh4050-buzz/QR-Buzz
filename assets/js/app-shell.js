@@ -53,3 +53,9 @@
 
     window.QRBuzzUI = { qs: qs, qsa: qsa, closeDrawer: closeDrawer };
 })();
+(function () {
+    document.addEventListener('click', function (event) {
+        var target = event.target.closest('[data-confirm]');
+        if (target && !window.confirm(target.getAttribute('data-confirm'))) { event.preventDefault(); }
+    });
+}());

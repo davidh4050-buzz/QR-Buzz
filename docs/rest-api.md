@@ -1,5 +1,18 @@
 # QR Buzz REST API
 
+## Smart Destination rules
+
+Authenticated workspace users with the Smart Destinations entitlement can use:
+
+- `GET|POST /wp-json/qr-buzz/v1/assets/{id}/destination-rules`
+- `GET|PATCH|DELETE /wp-json/qr-buzz/v1/assets/{id}/destination-rules/{rule_id}`
+- `POST /wp-json/qr-buzz/v1/assets/{id}/destination-rules/{rule_id}/duplicate`
+- `POST /wp-json/qr-buzz/v1/assets/{id}/destination-rules/{rule_id}/toggle`
+- `POST /wp-json/qr-buzz/v1/assets/{id}/destination-rules/reorder` with `rule_ids`
+- `POST /wp-json/qr-buzz/v1/assets/{id}/simulate-destination` with optional site-local `datetime`
+
+Write endpoints require normal WordPress REST nonce authentication. Asset queries are scoped to the active workspace, reject static QR codes, and confirm that `rule_id` belongs to both the asset and workspace. Simulation returns `simulation_only: true` and never records a scan.
+
 v0.9.0 introduces an internal REST API under `qr-buzz/v1`.
 
 The API is intended for QR Buzz admin surfaces and future integrations. It is not a public API-key system yet.

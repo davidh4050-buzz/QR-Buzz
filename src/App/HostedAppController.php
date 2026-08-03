@@ -24,6 +24,10 @@ use QRBuzz\QR\QRGenerator;
 use QRBuzz\QR\Types\QRPayloadService;
 use QRBuzz\QR\Types\QRTypeRegistry;
 use QRBuzz\Redirect\DestinationResolver;
+use QRBuzz\SmartDestinations\DestinationRuleService;
+use QRBuzz\SmartDestinations\DestinationSimulationService;
+use QRBuzz\SmartDestinations\RuleConditionFormatter;
+use QRBuzz\SmartDestinations\RuleConflictAnalyzer;
 use QRBuzz\Utils\DateTimeHelper;
 use QRBuzz\Workspace\WorkspaceService;
 
@@ -49,6 +53,10 @@ class HostedAppController {
     private DestinationRuleRepository $rules;
     private DestinationResolver $resolver;
     private QRInsightService $insights;
+    private DestinationRuleService $ruleService;
+    private DestinationSimulationService $simulation;
+    private RuleConditionFormatter $conditionFormatter;
+    private RuleConflictAnalyzer $conflicts;
 
     public function __construct() {
         $this->profiles = new ProfileRepository();
@@ -71,6 +79,10 @@ class HostedAppController {
         $this->rules = new DestinationRuleRepository($this->workspaces);
         $this->resolver = new DestinationResolver($this->rules);
         $this->insights = new QRInsightService($this->perQrAnalytics, $this->resolver, $this->rules);
+        $this->ruleService = new DestinationRuleService($this->rules, $this->qrCodes);
+        $this->simulation = new DestinationSimulationService($this->resolver);
+        $this->conditionFormatter = new RuleConditionFormatter();
+        $this->conflicts = new RuleConflictAnalyzer();
     }
 
     public function init(): void { add_action('template_redirect', [$this, 'route'], 0); }
@@ -96,6 +108,7 @@ class HostedAppController {
         if ($path === 'app/onboarding') { $this->postOnboarding(); }
         if ($path === 'app/qr/new') { $this->postQrStudio(); }
         if (preg_match('#^app/qr/(\d+)/studio$#', $path, $m)) { $this->postQrStudio((int) $m[1]); }
+        if (preg_match('#^app/qr/(\d+)/smart-destinations(?:/(new|\d+))?$#', $path, $m)) { $this->postSmartDestination((int) $m[1], isset($m[2]) && ctype_digit((string) $m[2]) ? (int) $m[2] : 0); }
         if ($path === 'app/campaigns') { $this->postCampaign(); }
         if (preg_match('#^app/campaigns/(\d+)$#', $path, $m)) { $this->postCampaign((int) $m[1]); }
         if ($path === 'app/settings/account') { $this->postAccount(); }
@@ -190,6 +203,24 @@ class HostedAppController {
         $this->redirect('/app/campaigns/' . $newId . '?created=1');
     }
 
+    private function postSmartDestination(int $qrId, int $ruleId = 0): void {
+        check_admin_referer('qrbuzz_smart_destination_' . $qrId, 'nonce');
+        $qr = $this->qrCodes->find($qrId);
+        if (!$qr || !$qr->isTrackable() || !$this->entitlements->allows('smart_destinations') || !current_user_can('read')) { wp_die(esc_html__('You cannot manage Smart Destinations for this QR code.', 'qr-buzz'), 403); }
+        $action = sanitize_key((string) ($_POST['rule_action'] ?? 'save'));
+        if ($action === 'simulate') { $this->redirect('/app/qr/' . $qrId . '/smart-destinations?simulate=' . rawurlencode(sanitize_text_field((string) ($_POST['simulate_at'] ?? 'now')))); }
+        if ($ruleId > 0 && !$this->ruleService->get($qrId, $ruleId)) { wp_die(esc_html__('Smart Destination rule not found.', 'qr-buzz'), 404); }
+        if ($action === 'delete') { $this->ruleService->delete($qrId, $ruleId, get_current_user_id()); $this->redirect('/app/qr/' . $qrId . '/smart-destinations?rule_deleted=1'); }
+        if ($action === 'toggle') { $this->ruleService->toggle($qrId, $ruleId, get_current_user_id()); $this->redirect('/app/qr/' . $qrId . '/smart-destinations?rule_toggled=1'); }
+        if ($action === 'duplicate') { $newId = $this->ruleService->duplicate($qrId, $ruleId, get_current_user_id()); $this->redirect('/app/qr/' . $qrId . '/smart-destinations/' . $newId . '?duplicated=1'); }
+        if (in_array($action, ['up','down'], true)) { $this->ruleService->move($qrId, $ruleId, $action, get_current_user_id()); $this->redirect('/app/qr/' . $qrId . '/smart-destinations?reordered=1'); }
+        if ($ruleId === 0 && !$this->entitlements->canCreateSmartRule($qrId)) { wp_die(esc_html__('Your plan has reached its Smart Destination rule limit.', 'qr-buzz'), 403); }
+        $result = $this->ruleService->save($qrId, wp_unslash($_POST), get_current_user_id(), $ruleId);
+        if (!$result['id']) { $this->redirect('/app/qr/' . $qrId . '/smart-destinations/' . ($ruleId ?: 'new') . '?error=invalid'); }
+        if ($action === 'save_test') { $this->redirect('/app/qr/' . $qrId . '/smart-destinations?simulate=now&saved=1'); }
+        $this->redirect('/app/qr/' . $qrId . '/smart-destinations?saved=1');
+    }
+
     private function postAccount(): void {
         check_admin_referer('qrbuzz_app_account', 'nonce');
         $userId = get_current_user_id();
@@ -217,6 +248,9 @@ class HostedAppController {
         if ($path === 'app/library') { $this->app('Library', $this->library()); }
         if ($path === 'app/qr/new') { $this->app('New QR', $this->qrForm()); }
         if (preg_match('#^app/qr/(\d+)/studio$#', $path, $m)) { $this->app('QR Studio', $this->qrStudio((int) $m[1])); }
+        if (preg_match('#^app/qr/(\d+)/smart-destinations/new$#', $path, $m)) { $this->app('Add Smart Destination', $this->smartDestinationForm((int) $m[1])); }
+        if (preg_match('#^app/qr/(\d+)/smart-destinations/(\d+)$#', $path, $m)) { $this->app('Edit Smart Destination', $this->smartDestinationForm((int) $m[1], (int) $m[2])); }
+        if (preg_match('#^app/qr/(\d+)/smart-destinations$#', $path, $m)) { $this->app('Smart Destinations', $this->smartDestinationsPage((int) $m[1])); }
         if (preg_match('#^app/qr/(\d+)/download/(png|svg)$#', $path, $m)) { $this->downloadQr((int) $m[1], (string) $m[2]); }
         if (preg_match('#^app/qr/(\d+)$#', $path, $m)) { $this->app('QR detail', $this->qrDetail((int) $m[1])); }
         if ($path === 'app/campaigns') { $this->app('Campaigns', $this->campaignPage()); }
@@ -283,7 +317,8 @@ class HostedAppController {
         $design = $qr ? QRDesignSettings::fromQrCode($qr) : $this->newDesignDefaults();
         $title = $qr ? 'Edit QR' : 'New QR';
         $action = $qr ? home_url('/app/qr/' . $qr->id . '/studio') : home_url('/app/qr/new');
-        return $this->pageHeader('QR Studio', $qr ? 'Edit content, destination, campaign and design without changing the QR code link.' : 'Choose the essentials first. Advanced destination and design options are available when they are relevant.', '<a class="qrb-button" href="/app/qr/new">Change type</a>') . (!empty($_GET['error']) ? '<p class="qrb-alert">Please check the highlighted details and try again.</p>' : '') . '<div class="qrb-studio"><form class="qrb-card qrb-form qrb-studio-form" method="post" action="' . esc_url($action) . '">' . wp_nonce_field('qrbuzz_app_qr', 'nonce', true, false) . '<input type="hidden" name="qr_id" value="' . esc_attr($qr ? $qr->id : 0) . '"><h2>' . esc_html($title) . '</h2>' . $this->studioContentFields($qr, $type, $payload) . $this->studioDesignFields($design) . '<div class="qrb-sticky-actions"><button class="qrb-button qrb-button-primary qrb-submit" data-loading-label="Saving...">' . esc_html($qr ? 'Update QR Code' : 'Create QR Code') . '</button><a class="qrb-button" href="' . esc_url($qr ? home_url('/app/qr/' . $qr->id) : home_url('/app/library')) . '">Cancel</a></div></form><aside class="qrb-card qrb-studio-preview"><h2>Live preview</h2>' . $this->studioPreview($qr, $type, $payload, $design) . '</aside></div>';
+        $html = ($qr ? $this->qrLevelNavigation($qr, 'studio') : '') . $this->pageHeader('QR Studio', $qr ? 'Edit content, destination, campaign and design without changing the QR code link.' : 'Choose the essentials first. Advanced destination and design options are available when they are relevant.', '<a class="qrb-button" href="/app/qr/new">Change type</a>') . (!empty($_GET['error']) ? '<p class="qrb-alert">Please check the highlighted details and try again.</p>' : '') . '<div class="qrb-studio"><form class="qrb-card qrb-form qrb-studio-form" method="post" action="' . esc_url($action) . '">' . wp_nonce_field('qrbuzz_app_qr', 'nonce', true, false) . '<input type="hidden" name="qr_id" value="' . esc_attr($qr ? $qr->id : 0) . '"><h2>' . esc_html($title) . '</h2>' . $this->studioContentFields($qr, $type, $payload) . $this->studioDesignFields($design) . '<div class="qrb-sticky-actions"><button class="qrb-button qrb-button-primary qrb-submit" data-loading-label="Saving...">' . esc_html($qr ? 'Update QR Code' : 'Create QR Code') . '</button><a class="qrb-button" href="' . esc_url($qr ? home_url('/app/qr/' . $qr->id) : home_url('/app/library')) . '">Cancel</a></div></form><aside class="qrb-card qrb-studio-preview"><h2>Live preview</h2>' . $this->studioPreview($qr, $type, $payload, $design) . '</aside></div>';
+        return $qr && $qr->isTrackable() ? $html . $this->smartDestinationsBlock($qr) : $html;
     }
 
     private function studioContentFields(?QRCode $qr, string $type, array $payload): string {
@@ -358,18 +393,64 @@ class HostedAppController {
         $resolution = $this->resolver->resolve($qr);
         $destination = $resolution->destinationUrl ?: $resolution->message;
         $rules = $this->rules->forQrCode($qr->id);
-        $html = '<section class="qrb-card"><div class="qrb-page-head"><h2>Smart Destinations</h2><a class="qrb-button" href="' . esc_url($this->studioUrl($qr->type, $qr->id)) . '">Edit destination settings</a></div>';
-        $html .= $this->metrics([['Current result',$resolution->shouldRedirect ? 'Redirect' : 'Message'],['Reason',$this->resolutionReasonLabel($resolution->reason)],['Status',$resolution->scanStatus],['Active rule',$resolution->matchedRuleName ?: '-']]);
+        $active = count(array_filter($rules, static fn(DestinationRule $rule): bool => $rule->isActive()));
+        $warnings = $this->conflicts->analyze($qr, $rules);
+        $html = '<section class="qrb-card"><div class="qrb-page-head"><h2>Smart Destinations</h2><a class="qrb-button qrb-button-primary" href="' . esc_url(home_url('/app/qr/' . $qr->id . '/smart-destinations')) . '">Manage Smart Destinations</a></div>';
+        $html .= $this->metrics([['Rules',count($rules)],['Active rules',$active],['Matched rule',$resolution->matchedRuleName ?: '-'],['Warnings',count($warnings)]]);
         $html .= '<p><strong>Resolved destination:</strong> ' . esc_html($destination ?: '-') . '</p>';
-        $html .= '<table class="qrb-table"><thead><tr><th>Priority</th><th>Rule</th><th>Status</th><th>Destination</th><th>Conditions</th></tr></thead><tbody>';
-        if (!$rules) { $html .= '<tr><td colspan="5">No Smart Destination rules yet. The primary destination is currently used.</td></tr>'; }
-        foreach ($rules as $rule) { $html .= $this->smartDestinationRuleRow($rule); }
-        return $html . '</tbody></table></section>';
+        return $html . '</section>';
     }
 
     private function smartDestinationRuleRow(DestinationRule $rule): string {
-        return '<tr><td>' . esc_html((string) $rule->priority) . '</td><td>' . esc_html($rule->name) . '</td><td>' . esc_html(ucfirst($rule->status)) . '</td><td>' . esc_html($rule->destinationUrl) . '</td><td>' . esc_html($this->ruleConditionLabel($rule)) . '</td></tr>';
+        return '<tr><td>' . esc_html((string) $rule->priority) . '</td><td>' . esc_html($rule->name) . '</td><td>' . esc_html(ucfirst($rule->status)) . '</td><td>' . esc_html($rule->destinationUrl) . '</td><td>' . esc_html($this->conditionFormatter->format($rule)) . '</td></tr>';
     }
+
+    private function smartDestinationsPage(int $qrId): string {
+        $qr = $this->smartDestinationQr($qrId); if (!$qr) { return '<h1>Dynamic QR not found</h1>'; }
+        $rules = $this->rules->forQrCode($qrId); $resolution = $this->resolver->resolve($qr); $warnings = $this->conflicts->analyze($qr, $rules);
+        $html = $this->qrLevelNavigation($qr, 'smart-destinations');
+        $html .= $this->pageHeader('Smart Destinations', 'QR Buzz checks active rules from top to bottom and uses the first rule whose conditions match.', '<a class="qrb-button qrb-button-primary" href="' . esc_url(home_url('/app/qr/' . $qrId . '/smart-destinations/new')) . '">Add Rule</a><a class="qrb-button" href="#destination-simulator">Test Destination</a><a class="qrb-button" href="' . esc_url($this->studioUrl($qr->type, $qrId)) . '">Return to Studio</a>');
+        $active = count(array_filter($rules, static fn(DestinationRule $rule): bool => $rule->isActive()));
+        $html .= '<section class="qrb-card"><h2>Current destination</h2>' . $this->metrics([['QR status',ucfirst($qr->effectiveStatus())],['QR type',$this->types->label($qr->type)],['Rules',count($rules)],['Active rules',$active]]);
+        $html .= '<div class="qrb-detail-grid"><p><strong>Primary destination</strong><br>' . esc_html($qr->destinationUrl) . '</p><p><strong>Fallback destination</strong><br>' . esc_html($qr->fallbackUrl ?: 'Not configured') . '</p><p><strong>Site time</strong><br>' . esc_html(DateTimeHelper::nowLocalDisplay() . ' · ' . wp_timezone_string()) . '</p><p><strong>Resolved destination</strong><br>' . esc_html($resolution->destinationUrl ?: $resolution->message) . '</p><p><strong>Resolution reason</strong><br>' . esc_html($this->resolutionReasonLabel($resolution->reason)) . '</p><p><strong>Matched rule</strong><br>' . esc_html($resolution->matchedRuleName ?: 'No rule currently matches') . '</p></div></section>';
+        if ($warnings) { $html .= '<section class="qrb-card"><h2>Rule warnings</h2><ul class="qrb-warning-list">'; foreach ($warnings as $warning) { $html .= '<li class="qrb-alert qrb-alert-' . esc_attr($warning['severity']) . '"><strong>' . esc_html(ucfirst($warning['severity'])) . ':</strong> ' . esc_html($warning['message']) . '</li>'; } $html .= '</ul></section>'; }
+        $html .= '<section class="qrb-card"><h2>Rules</h2><div class="qrb-table-wrap"><table class="qrb-table qrb-rules-table"><thead><tr><th>Priority</th><th>Rule</th><th>Status</th><th>Destination</th><th>Conditions</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
+        if (!$rules) { $html .= '<tr><td colspan="7">No Smart Destination rules yet. QR Buzz will use the primary destination.</td></tr>'; }
+        foreach ($rules as $rule) { $html .= $this->smartRuleManagementRow($qr, $rule, $resolution->matchedRuleId === $rule->id); }
+        $html .= '</tbody></table></div></section>' . $this->destinationSimulator($qr);
+        $history = $this->qrCodes->destinationHistory($qrId, 20); $html .= '<section class="qrb-card"><h2>Recent destination history</h2><ul class="qrb-history-list">'; foreach ($history as $item) { $html .= '<li><strong>' . esc_html(ucwords(str_replace('_', ' ', (string) $item->change_type))) . '</strong> · ' . esc_html((string) $item->changed_at) . '<br><span>' . esc_html((string) ($item->previous_value ?: '—')) . ' → ' . esc_html((string) ($item->new_value ?: '—')) . '</span></li>'; } return $html . '</ul></section>';
+    }
+
+    private function smartRuleManagementRow(QRCode $qr, DestinationRule $rule, bool $matches): string {
+        $base = home_url('/app/qr/' . $qr->id . '/smart-destinations/' . $rule->id); $nonce = wp_nonce_field('qrbuzz_smart_destination_' . $qr->id, 'nonce', true, false);
+        $post = static function(string $action, string $label, string $class = '') use ($base, $nonce, $rule): string { $confirm = $action === 'delete' ? ' data-confirm="Delete ' . esc_attr($rule->name) . '? This rule will no longer affect future scans. This action cannot be undone."' : ''; return '<form method="post" action="' . esc_url($base) . '" class="qrb-inline-form">' . $nonce . '<input type="hidden" name="rule_action" value="' . esc_attr($action) . '"><button class="qrb-button ' . esc_attr($class) . '"' . $confirm . '>' . esc_html($label) . '</button></form>'; };
+        return '<tr><td data-label="Priority">' . esc_html((string) $rule->priority) . '</td><td data-label="Rule"><strong>' . esc_html($rule->name) . '</strong>' . ($matches ? '<br><span class="qrb-badge">Currently matching</span>' : '') . '</td><td data-label="Status">' . $this->statusBadge($rule->status) . '</td><td data-label="Destination"><span class="qrb-break-url">' . esc_html($rule->destinationUrl) . '</span></td><td data-label="Conditions">' . esc_html($this->conditionFormatter->format($rule)) . '</td><td data-label="Updated">' . esc_html($rule->updatedAt) . '</td><td data-label="Actions"><div class="qrb-actions"><a class="qrb-button" href="' . esc_url($base) . '">Edit</a>' . $post('duplicate', 'Duplicate') . $post('toggle', $rule->isActive() ? 'Deactivate' : 'Activate') . $post('up', 'Move Up') . $post('down', 'Move Down') . $post('delete', 'Delete', 'qrb-button-danger') . '</div></td></tr>';
+    }
+
+    private function smartDestinationForm(int $qrId, int $ruleId = 0): string {
+        $qr = $this->smartDestinationQr($qrId); if (!$qr) { return '<h1>Dynamic QR not found</h1>'; }
+        $rule = $ruleId ? $this->ruleService->get($qrId, $ruleId) : null; if ($ruleId && !$rule) { return '<h1>Rule not found</h1>'; }
+        $action = home_url('/app/qr/' . $qrId . '/smart-destinations/' . ($rule ? $rule->id : 'new')); $days = $rule ? $rule->dayNumbers() : [];
+        $html = $this->qrLevelNavigation($qr, 'smart-destinations') . $this->pageHeader($rule ? 'Edit rule' : 'Add rule', 'Active rules are evaluated in priority order. The first matching rule determines the destination.');
+        if (!empty($_GET['error'])) { $html .= '<div class="qrb-alert" role="alert">Check the highlighted rule details and try again.</div>'; }
+        if ($rule && !$rule->isActive()) { $html .= '<div class="qrb-alert qrb-alert-information">Information: this rule is currently inactive.</div>'; }
+        $html .= '<form class="qrb-card qrb-form qrb-rule-form" method="post" action="' . esc_url($action) . '">' . wp_nonce_field('qrbuzz_smart_destination_' . $qrId, 'nonce', true, false);
+        $html .= '<div class="qrb-form-grid">' . $this->input('Rule name', 'name', $rule ? $rule->name : '', 'text', true) . $this->input('Destination URL', 'destination_url', $rule ? $rule->destinationUrl : '', 'url', true) . $this->input('Priority', 'priority', (string) ($rule ? $rule->priority : count($this->rules->forQrCode($qrId)) + 1), 'number', true) . '<label>Status<select name="status"><option value="active" ' . selected($rule ? $rule->status : 'active', 'active', false) . '>Active</option><option value="inactive" ' . selected($rule ? $rule->status : 'active', 'inactive', false) . '>Inactive</option></select></label>' . $this->input('Start date and time', 'starts_at', $rule ? DateTimeHelper::utcToLocalInput($rule->startsAt) : '', 'datetime-local') . $this->input('End date and time', 'ends_at', $rule ? DateTimeHelper::utcToLocalInput($rule->endsAt) : '', 'datetime-local') . $this->input('Start time', 'time_start', $rule ? (string) $rule->timeStart : '', 'time') . $this->input('End time', 'time_end', $rule ? (string) $rule->timeEnd : '', 'time') . '</div><fieldset><legend>Days of week</legend><div class="qrb-day-picker">';
+        foreach ([1=>'Monday',2=>'Tuesday',3=>'Wednesday',4=>'Thursday',5=>'Friday',6=>'Saturday',7=>'Sunday'] as $number => $label) { $html .= '<label><input type="checkbox" name="days_of_week[]" value="' . $number . '" ' . checked(in_array($number, $days, true), true, false) . '> ' . esc_html($label) . '</label>'; }
+        $html .= '</div></fieldset><p class="qrb-help">A time such as 17:00–02:00 is treated as an overnight window.</p><div class="qrb-actions"><button class="qrb-button qrb-button-primary" name="rule_action" value="save">' . ($rule ? 'Save Changes' : 'Save Rule') . '</button><button class="qrb-button" name="rule_action" value="save_test">Save and Test</button>';
+        if ($rule) { $html .= '<button class="qrb-button" name="rule_action" value="duplicate">Duplicate</button><button class="qrb-button qrb-button-danger" name="rule_action" value="delete" data-confirm="Delete ' . esc_attr($rule->name) . '? This action cannot be undone.">Delete</button>'; }
+        return $html . '<a class="qrb-button" href="' . esc_url(home_url('/app/qr/' . $qrId . '/smart-destinations')) . '">Cancel</a></div></form>';
+    }
+
+    private function destinationSimulator(QRCode $qr): string {
+        $value = sanitize_text_field((string) ($_GET['simulate'] ?? '')); $result = null; if ($value) { try { $result = $this->simulation->simulate($qr, $value === 'now' ? null : $value); } catch (\InvalidArgumentException $exception) { $result = ['error' => $exception->getMessage()]; } }
+        $html = '<section id="destination-simulator" class="qrb-card"><h2>Destination simulator</h2><p>Simulation only — no scan recorded.</p><form method="post" class="qrb-form qrb-simulator-form">' . wp_nonce_field('qrbuzz_smart_destination_' . $qr->id, 'nonce', true, false) . '<input type="hidden" name="rule_action" value="simulate"><label>Test date and time<input type="datetime-local" name="simulate_at" value="' . esc_attr($value !== 'now' ? $value : '') . '"></label><button class="qrb-button qrb-button-primary">Test Destination</button></form>';
+        if ($result && isset($result['resolution'])) { $resolution = $result['resolution']; $rule = $resolution->matchedRuleId ? $this->rules->findForQrCode($resolution->matchedRuleId, $qr->id) : null; $html .= '<div class="qrb-simulation-result" role="status" aria-live="polite"><h3>Simulation result</h3><p><strong>Tested:</strong> ' . esc_html($result['tested_at'] . ' · ' . $result['timezone']) . '</p><p><strong>QR status:</strong> ' . esc_html($qr->effectiveStatus($result['timestamp'])) . '</p><p><strong>Matched rule:</strong> ' . esc_html($resolution->matchedRuleName ?: 'None') . '</p><p><strong>Conditions:</strong> ' . esc_html($rule ? $this->conditionFormatter->format($rule) : '—') . '</p><p><strong>Resolved destination:</strong> ' . esc_html($resolution->destinationUrl ?: $resolution->message) . '</p><p><strong>Reason:</strong> ' . esc_html($this->resolutionReasonLabel($resolution->reason)) . '</p></div>'; } elseif ($result) { $html .= '<div class="qrb-alert" role="alert">' . esc_html($result['error']) . '</div>'; }
+        return $html . '</section>';
+    }
+
+    private function smartDestinationQr(int $qrId): ?QRCode { if (!$this->entitlements->allows('smart_destinations') || !current_user_can('read')) { return null; } $qr = $this->qrCodes->find($qrId); return $qr && $qr->isTrackable() ? $qr : null; }
+    private function qrLevelNavigation(QRCode $qr, string $active): string { $items = ['overview' => ['Overview','/app/qr/' . $qr->id], 'studio' => ['Studio','/app/qr/' . $qr->id . '/studio'], 'smart-destinations' => ['Smart Destinations','/app/qr/' . $qr->id . '/smart-destinations'], 'analytics' => ['Analytics','/app/qr/' . $qr->id . '#analytics'], 'history' => ['History','/app/qr/' . $qr->id . '/smart-destinations#history'], 'downloads' => ['Downloads','/app/qr/' . $qr->id]]; $html = '<nav class="qrb-qr-nav" aria-label="QR navigation">'; foreach ($items as $key => [$label,$url]) { $html .= '<a class="qrb-button ' . ($key === $active ? 'qrb-button-primary' : '') . '" ' . ($key === $active ? 'aria-current="page"' : '') . ' href="' . esc_url(home_url($url)) . '">' . esc_html($label) . '</a>'; } return $html . '</nav>'; }
 
     private function qrAnalyticsBlock(QRCode $qr): string {
         if (!$qr->isTrackable()) { return '<section class="qrb-card"><h2>Analytics</h2><p>Static QR codes do not use QR Buzz tracking. To collect analytics, create a Dynamic URL QR code.</p></section>'; }
@@ -439,7 +520,7 @@ class HostedAppController {
     private function filename(string $name, string $shortcode, string $extension): string { $safe = sanitize_title($name); if ($safe === '') { $safe = strtolower($shortcode); } return $safe . '-' . strtolower($shortcode) . '.' . $extension; }
     private function studioUrl(string $type, int $id = 0): string { return $id > 0 ? home_url('/app/qr/' . $id . '/studio') : home_url('/app/qr/new?type=' . rawurlencode($type) . '&studio=1'); }
     private function downloadUrl(int $id, string $format): string { return wp_nonce_url(admin_url('admin-post.php?action=qrbuzz_download_' . $format . '&qr_id=' . $id), 'qrbuzz_download_qr_' . $id); }
-    private function input(string $label, string $name, string $value, string $type = 'text'): string { return '<label>' . esc_html($label) . '<input type="' . esc_attr($type) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"></label>'; }
+    private function input(string $label, string $name, string $value, string $type = 'text', bool $required = false): string { return '<label>' . esc_html($label) . '<input type="' . esc_attr($type) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '" ' . ($required ? 'required aria-required="true"' : '') . '></label>'; }
     private function textarea(string $label, string $name, string $value): string { return '<label>' . esc_html($label) . '<textarea name="' . esc_attr($name) . '">' . esc_textarea($value) . '</textarea></label>'; }
     private function select(string $label, string $name, string $selected, array $options): string { $html = '<label>' . esc_html($label) . '<select name="' . esc_attr($name) . '">'; foreach ($options as $value => $optionLabel) { $html .= '<option value="' . esc_attr((string) $value) . '" ' . selected($selected, $value, false) . '>' . esc_html((string) $optionLabel) . '</option>'; } return $html . '</select></label>'; }
     private function logoField(QRDesignSettings $design): string { $allowed = $this->entitlements->allows('logo_embedding'); $image = $allowed && $design->logoAttachmentId ? wp_get_attachment_image($design->logoAttachmentId, 'thumbnail') : ''; return '<label>Logo<input type="hidden" class="qrb-logo-id" name="logo_attachment_id" value="' . esc_attr($allowed ? (string) $design->logoAttachmentId : '0') . '"><span class="qrb-logo-actions"><button type="button" class="qrb-button qrb-select-logo" ' . disabled(!$allowed, true, false) . '>Choose logo</button><button type="button" class="qrb-button qrb-remove-logo" ' . disabled(!$allowed || !$design->logoAttachmentId, true, false) . '>Remove logo</button></span><span class="qrb-logo-preview">' . wp_kses_post($image) . '</span><span class="qrb-help">Square logo artwork usually scans best. Non-square logos are fitted without stretching.</span></label>'; }

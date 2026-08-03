@@ -6,9 +6,15 @@ use QRBuzz\Analytics\DateRange;
 use QRBuzz\Analytics\PerQRAnalyticsService;
 use QRBuzz\Analytics\QRInsightService;
 use QRBuzz\Database\CampaignRepository;
+use QRBuzz\Database\DestinationRuleRepository;
 use QRBuzz\Database\QRRepository;
 use QRBuzz\Membership\EntitlementService;
 use QRBuzz\QR\Design\BrandKitSettings;
+use QRBuzz\Redirect\DestinationResolver;
+use QRBuzz\SmartDestinations\DestinationRuleService;
+use QRBuzz\SmartDestinations\DestinationSimulationService;
+use QRBuzz\SmartDestinations\RuleConditionFormatter;
+use QRBuzz\SmartDestinations\RuleConflictAnalyzer;
 use QRBuzz\Workspace\WorkspaceService;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -23,6 +29,11 @@ class RestController {
     private PerQRAnalyticsService $qrAnalytics;
     private CampaignAnalyticsService $campaignAnalytics;
     private QRInsightService $insights;
+    private DestinationRuleRepository $rules;
+    private DestinationRuleService $ruleService;
+    private DestinationSimulationService $simulation;
+    private RuleConditionFormatter $formatter;
+    private RuleConflictAnalyzer $conflicts;
 
     public function __construct(?WorkspaceService $workspaces = null, ?EntitlementService $entitlements = null, ?QRRepository $qrCodes = null, ?CampaignRepository $campaigns = null, ?BrandKitSettings $brandKit = null, ?PerQRAnalyticsService $qrAnalytics = null, ?CampaignAnalyticsService $campaignAnalytics = null, ?QRInsightService $insights = null) {
         $this->workspaces = $workspaces ?: new WorkspaceService();
@@ -33,6 +44,12 @@ class RestController {
         $this->qrAnalytics = $qrAnalytics ?: new PerQRAnalyticsService(null, $this->workspaces);
         $this->campaignAnalytics = $campaignAnalytics ?: new CampaignAnalyticsService(null, $this->workspaces);
         $this->insights = $insights ?: new QRInsightService($this->qrAnalytics);
+        $this->rules = new DestinationRuleRepository($this->workspaces);
+        $resolver = new DestinationResolver($this->rules);
+        $this->ruleService = new DestinationRuleService($this->rules, $this->qrCodes);
+        $this->simulation = new DestinationSimulationService($resolver);
+        $this->formatter = new RuleConditionFormatter();
+        $this->conflicts = new RuleConflictAnalyzer();
     }
 
     public function init(): void {
@@ -51,10 +68,17 @@ class RestController {
         register_rest_route('qr-buzz/v1', '/campaigns/(?P<id>\d+)/analytics', ['methods' => 'GET', 'callback' => [$this, 'campaignAnalytics'], 'permission_callback' => [$this, 'apiPermission']]);
         register_rest_route('qr-buzz/v1', '/analytics/summary', ['methods' => 'GET', 'callback' => [$this, 'analyticsSummary'], 'permission_callback' => [$this, 'apiPermission']]);
         register_rest_route('qr-buzz/v1', '/brand-kit', ['methods' => 'GET', 'callback' => [$this, 'brandKit'], 'permission_callback' => [$this, 'permission']]);
+        register_rest_route('qr-buzz/v1', '/assets/(?P<id>\d+)/destination-rules', [['methods' => 'GET', 'callback' => [$this, 'destinationRules'], 'permission_callback' => [$this, 'smartPermission']], ['methods' => 'POST', 'callback' => [$this, 'createDestinationRule'], 'permission_callback' => [$this, 'smartPermission']]]);
+        register_rest_route('qr-buzz/v1', '/assets/(?P<id>\d+)/destination-rules/(?P<rule_id>\d+)', [['methods' => 'GET', 'callback' => [$this, 'destinationRule'], 'permission_callback' => [$this, 'smartPermission']], ['methods' => 'PATCH', 'callback' => [$this, 'updateDestinationRule'], 'permission_callback' => [$this, 'smartPermission']], ['methods' => 'DELETE', 'callback' => [$this, 'deleteDestinationRule'], 'permission_callback' => [$this, 'smartPermission']]]);
+        register_rest_route('qr-buzz/v1', '/assets/(?P<id>\d+)/destination-rules/(?P<rule_id>\d+)/duplicate', ['methods' => 'POST', 'callback' => [$this, 'duplicateDestinationRule'], 'permission_callback' => [$this, 'smartPermission']]);
+        register_rest_route('qr-buzz/v1', '/assets/(?P<id>\d+)/destination-rules/(?P<rule_id>\d+)/toggle', ['methods' => 'POST', 'callback' => [$this, 'toggleDestinationRule'], 'permission_callback' => [$this, 'smartPermission']]);
+        register_rest_route('qr-buzz/v1', '/assets/(?P<id>\d+)/destination-rules/reorder', ['methods' => 'POST', 'callback' => [$this, 'reorderDestinationRules'], 'permission_callback' => [$this, 'smartPermission']]);
+        register_rest_route('qr-buzz/v1', '/assets/(?P<id>\d+)/simulate-destination', ['methods' => 'POST', 'callback' => [$this, 'simulateDestination'], 'permission_callback' => [$this, 'smartPermission']]);
     }
 
     public function permission(): bool { return current_user_can('manage_options'); }
     public function apiPermission(): bool { return current_user_can('manage_options') && $this->entitlements->allows('api_access'); }
+    public function smartPermission(): bool { return is_user_logged_in() && current_user_can('read') && $this->entitlements->allows('smart_destinations'); }
 
     public function workspace(): WP_REST_Response {
         $workspace = $this->workspaces->current();
@@ -121,6 +145,16 @@ class RestController {
     public function analyticsSummary(): WP_REST_Response { return $this->response($this->qrCodes->dashboardSummary()); }
     public function brandKit(): WP_REST_Response { return $this->response($this->brandKit->get()); }
 
+    public function destinationRules(WP_REST_Request $request): WP_REST_Response { $qr = $this->dynamicAsset($request); if (!$qr) { return $this->error('not_found', 'Dynamic QR asset not found.', 404); } $rules = $this->rules->forQrCode($qr->id); return $this->response(['rules' => array_map([$this, 'ruleData'], $rules), 'warnings' => $this->conflicts->analyze($qr, $rules)]); }
+    public function destinationRule(WP_REST_Request $request): WP_REST_Response { $rule = $this->requestedRule($request); return $rule ? $this->response($this->ruleData($rule)) : $this->error('not_found', 'Smart Destination rule not found.', 404); }
+    public function createDestinationRule(WP_REST_Request $request): WP_REST_Response { $qr = $this->dynamicAsset($request); if (!$qr) { return $this->error('not_found', 'Dynamic QR asset not found.', 404); } if (!$this->entitlements->canCreateSmartRule($qr->id)) { return $this->error('limit_reached', 'Smart Destination rule limit reached.', 403); } $result = $this->ruleService->save($qr->id, $request->get_json_params() ?: $request->get_params(), get_current_user_id()); return $result['id'] ? $this->response($this->ruleData($this->rules->find($result['id'])), 201) : $this->response(['errors' => $result['errors']], 422); }
+    public function updateDestinationRule(WP_REST_Request $request): WP_REST_Response { $rule = $this->requestedRule($request); if (!$rule) { return $this->error('not_found', 'Smart Destination rule not found.', 404); } $input = array_merge($this->ruleInput($rule), $request->get_json_params() ?: []); $result = $this->ruleService->save($rule->qrId, $input, get_current_user_id(), $rule->id); return $result['id'] ? $this->response($this->ruleData($this->rules->find($rule->id))) : $this->response(['errors' => $result['errors']], 422); }
+    public function deleteDestinationRule(WP_REST_Request $request): WP_REST_Response { $rule = $this->requestedRule($request); if (!$rule) { return $this->error('not_found', 'Smart Destination rule not found.', 404); } return $this->ruleService->delete($rule->qrId, $rule->id, get_current_user_id()) ? $this->response(['deleted' => true]) : $this->error('delete_failed', 'Rule could not be deleted.', 500); }
+    public function duplicateDestinationRule(WP_REST_Request $request): WP_REST_Response { $rule = $this->requestedRule($request); if (!$rule) { return $this->error('not_found', 'Smart Destination rule not found.', 404); } if (!$this->entitlements->canCreateSmartRule($rule->qrId)) { return $this->error('limit_reached', 'Smart Destination rule limit reached.', 403); } $id = $this->ruleService->duplicate($rule->qrId, $rule->id, get_current_user_id()); return $id ? $this->response($this->ruleData($this->rules->find($id)), 201) : $this->error('duplicate_failed', 'Rule could not be duplicated.', 500); }
+    public function toggleDestinationRule(WP_REST_Request $request): WP_REST_Response { $rule = $this->requestedRule($request); if (!$rule) { return $this->error('not_found', 'Smart Destination rule not found.', 404); } $this->ruleService->toggle($rule->qrId, $rule->id, get_current_user_id()); return $this->response($this->ruleData($this->rules->find($rule->id))); }
+    public function reorderDestinationRules(WP_REST_Request $request): WP_REST_Response { $qr = $this->dynamicAsset($request); if (!$qr) { return $this->error('not_found', 'Dynamic QR asset not found.', 404); } $ids = (array) $request->get_param('rule_ids'); if (!$this->rules->reorder($qr->id, $ids, get_current_user_id())) { return $this->error('invalid_order', 'The order must contain every rule exactly once.', 422); } return $this->destinationRules($request); }
+    public function simulateDestination(WP_REST_Request $request): WP_REST_Response { $qr = $this->dynamicAsset($request); if (!$qr) { return $this->error('not_found', 'Dynamic QR asset not found.', 404); } try { $result = $this->simulation->simulate($qr, $request->get_param('datetime') ? (string) $request->get_param('datetime') : null); } catch (\InvalidArgumentException $exception) { return $this->error('invalid_datetime', $exception->getMessage(), 422); } $resolution = $result['resolution']; return $this->response(['tested_at' => $result['tested_at'], 'timezone' => $result['timezone'], 'status' => $qr->effectiveStatus($result['timestamp']), 'reason' => $resolution->reason, 'destination_url' => $resolution->destinationUrl, 'message' => $resolution->message, 'matched_rule_id' => $resolution->matchedRuleId, 'matched_rule_name' => $resolution->matchedRuleName, 'simulation_only' => true]); }
+
     private function assetData($asset): array {
         return ['id' => $asset->id, 'workspace_id' => $asset->workspaceId, 'name' => $asset->name, 'type' => $asset->type, 'shortcode' => $asset->shortcode, 'destination_url' => $asset->destinationUrl, 'is_trackable' => $asset->isTrackable(), 'campaign_id' => $asset->campaignId, 'campaign_name' => $asset->campaignName, 'scan_count' => $asset->scanCount, 'created_at' => $asset->createdAt, 'updated_at' => $asset->updatedAt];
     }
@@ -128,6 +162,11 @@ class RestController {
     private function campaignData($campaign): array {
         return ['id' => $campaign->id, 'workspace_id' => $campaign->workspaceId, 'name' => $campaign->name, 'slug' => $campaign->slug, 'status' => $campaign->status, 'qr_count' => $campaign->qrCount, 'dynamic_count' => $campaign->dynamicCount, 'static_count' => $campaign->staticCount, 'scan_count' => $campaign->scanCount];
     }
+
+    private function dynamicAsset(WP_REST_Request $request) { $qr = $this->qrCodes->find(absint($request['id'])); return $qr && $qr->isTrackable() ? $qr : null; }
+    private function requestedRule(WP_REST_Request $request) { $qr = $this->dynamicAsset($request); return $qr ? $this->rules->findForQrCode(absint($request['rule_id']), $qr->id) : null; }
+    private function ruleData($rule): array { return ['id' => $rule->id, 'qr_id' => $rule->qrId, 'name' => $rule->name, 'priority' => $rule->priority, 'status' => $rule->status, 'destination_url' => $rule->destinationUrl, 'starts_at' => $rule->startsAt, 'ends_at' => $rule->endsAt, 'days_of_week' => $rule->dayNumbers(), 'time_start' => $rule->timeStart, 'time_end' => $rule->timeEnd, 'condition_summary' => $this->formatter->format($rule), 'created_at' => $rule->createdAt, 'updated_at' => $rule->updatedAt]; }
+    private function ruleInput($rule): array { return ['name' => $rule->name, 'priority' => $rule->priority, 'status' => $rule->status, 'destination_url' => $rule->destinationUrl, 'starts_at' => $rule->startsAt ? \QRBuzz\Utils\DateTimeHelper::utcToLocalInput($rule->startsAt) : '', 'ends_at' => $rule->endsAt ? \QRBuzz\Utils\DateTimeHelper::utcToLocalInput($rule->endsAt) : '', 'days_of_week' => $rule->dayNumbers(), 'time_start' => $rule->timeStart, 'time_end' => $rule->timeEnd]; }
 
     private function scanRows(array $rows): array {
         return array_map(static fn($row): array => [

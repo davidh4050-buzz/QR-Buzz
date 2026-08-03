@@ -3,6 +3,7 @@ namespace QRBuzz\Platform;
 
 use QRBuzz\Analytics\UserAgentParser;
 use QRBuzz\Database\Schema;
+use QRBuzz\Models\DestinationRule;
 use QRBuzz\Models\QRCode;
 
 class PlatformAdminRepository {
@@ -10,6 +11,9 @@ class PlatformAdminRepository {
     private UserAgentParser $parser;
 
     public function __construct(?UserAgentParser $parser = null) { $this->parser = $parser ?: new UserAgentParser(); }
+
+    public function destinationRulesForQr(int $qrId, int $workspaceId): array { global $wpdb; $rows = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . Schema::destinationRulesTable() . ' WHERE qr_id = %d AND workspace_id = %d ORDER BY priority ASC, id ASC', $qrId, $workspaceId)) ?: []; return array_map([DestinationRule::class, 'fromRow'], $rows); }
+    public function destinationHistoryForQr(int $qrId, int $workspaceId, int $limit = 20): array { global $wpdb; return $wpdb->get_results($wpdb->prepare('SELECT h.*, u.display_name AS actor_name FROM ' . Schema::destinationHistoryTable() . ' h INNER JOIN ' . Schema::qrcodesTable() . ' q ON q.id = h.qr_id LEFT JOIN ' . $wpdb->users . ' u ON u.ID = h.changed_by WHERE h.qr_id = %d AND q.workspace_id = %d ORDER BY h.changed_at DESC LIMIT %d', $qrId, $workspaceId, $limit)) ?: []; }
 
     public function summary(): array {
         global $wpdb;
