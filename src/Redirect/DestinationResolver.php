@@ -94,11 +94,11 @@ class DestinationResolver {
 
         if ($rule->timeStart || $rule->timeEnd) {
             $time = wp_date('H:i', $timestamp, wp_timezone());
-            if ($rule->timeStart && $time < $rule->timeStart) {
-                return false;
-            }
-            if ($rule->timeEnd && $time > $rule->timeEnd) {
-                return false;
+            if ($rule->timeStart && $rule->timeEnd && $rule->timeStart > $rule->timeEnd) {
+                if ($time < $rule->timeStart && $time > $rule->timeEnd) { return false; }
+            } else {
+                if ($rule->timeStart && $time < $rule->timeStart) { return false; }
+                if ($rule->timeEnd && $time > $rule->timeEnd) { return false; }
             }
         }
 

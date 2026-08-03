@@ -1,6 +1,12 @@
 # Changelog
 
 ## 0.9.7
+- Smart Destinations Management Update: added dedicated customer rule management pages with add, edit, delete, duplicate, activate/deactivate, and accessible priority controls
+- Added production-resolver destination simulation for current or future site-local times without recording scans or analytics
+- Added reusable human-readable condition formatting, strict rule validation, overnight time-window support, and deterministic conflict warnings
+- Added workspace-scoped Smart Destination REST endpoints with explicit QR/rule pairing checks
+- Added plain-language rule history, platform audit events, and expanded Platform Admin QR Inspector rule diagnostics
+- Added responsive QR-level navigation and a concise QR Studio Smart Destinations summary
 - Added dedicated `/platform-admin/*` platform administration area with QR Buzz application styling
 - Added `qrbuzz_manage_platform` capability and QR Buzz Platform Admin role
 - Added platform overview dashboard with operational metrics, attention-required card, recent activity, and "What's happening today?" observations

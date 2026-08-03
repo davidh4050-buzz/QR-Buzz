@@ -93,6 +93,9 @@ Authenticated routes:
 - `/app/library`
 - `/app/qr/new`
 - `/app/qr/{id}`
+- `/app/qr/{id}/smart-destinations`
+- `/app/qr/{id}/smart-destinations/new`
+- `/app/qr/{id}/smart-destinations/{rule_id}`
 - `/app/qr/{id}/download/png`
 - `/app/qr/{id}/download/svg`
 - `/app/campaigns`
@@ -165,6 +168,10 @@ Stylised QR codes should always be tested on phones before printing, especially 
 Smart Destinations let a dynamic QR code redirect to different URLs at different times without changing the printed QR code.
 
 Rules are evaluated in priority order. The first active rule whose conditions match wins. If no rule matches, QR Buzz uses the primary destination URL.
+
+Dynamic QR owners can manage rules from the QR-level **Smart Destinations** page. Rule actions use authenticated POST requests with WordPress nonces and recheck the active workspace, dynamic QR type, rule ownership, and plan entitlement. Duplicated rules start inactive.
+
+Date and time values are interpreted in the WordPress site timezone. A window whose start is later than its end, such as `17:00–02:00`, is treated as an overnight window. The simulator uses the production resolver and never records a scan.
 
 Resolver order:
 
