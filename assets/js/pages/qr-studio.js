@@ -7,6 +7,12 @@
         if (status) { status.textContent = message; }
     }
 
+    function setDirty(value){
+        dirty = value;
+        var indicator = qs("[data-qrb-unsaved]");
+        if (indicator) { indicator.hidden = !value; }
+    }
+
     function refreshPreview(){
         var form = qs(".qrb-studio-form");
         var target = qs(".qrb-live-preview");
@@ -15,6 +21,9 @@
         data.set("action", "qrbuzz_preview");
         data.set("nonce", window.QRBuzzApp.previewNonce);
         target.setAttribute("aria-busy", "true");
+        if (!target.querySelector("img")) {
+            target.innerHTML = "<span class=\"qrb-loading\">Generating preview</span>";
+        }
         setStatus("Refreshing preview...");
         fetch(window.QRBuzzApp.ajaxUrl, { method: "POST", credentials: "same-origin", body: data })
             .then(function(response){ return response.json(); })
@@ -54,7 +63,7 @@
                 field.value = attachment.id;
                 preview.innerHTML = "<img src=\"" + ((attachment.sizes && attachment.sizes.thumbnail) ? attachment.sizes.thumbnail.url : attachment.url) + "\" alt=\"\">";
                 if (remove) { remove.disabled = false; }
-                dirty = true;
+                setDirty(true);
                 schedulePreview();
             });
             frame.open();
@@ -67,14 +76,14 @@
             qs(".qrb-logo-id", logoWrap).value = "0";
             qs(".qrb-logo-preview", logoWrap).innerHTML = "";
             removeLogo.disabled = true;
-            dirty = true;
+            setDirty(true);
             schedulePreview();
         }
     });
 
     document.addEventListener("change", function(event){
         if (!event.target.closest(".qrb-studio-form")) { return; }
-        dirty = true;
+        setDirty(true);
         if (event.target.classList.contains("qrb-theme-select")) {
             var option = event.target.selectedOptions[0];
             var form = event.target.closest("form");
@@ -93,15 +102,21 @@
 
     document.addEventListener("input", function(event){
         if (event.target.closest(".qrb-studio-form")) {
-            dirty = true;
+            setDirty(true);
             schedulePreview();
         }
     });
 
+    document.addEventListener("toggle", function(event){
+        var details = event.target.closest && event.target.closest("[data-qrb-accordion]");
+        if (!details) { return; }
+        try { window.localStorage.setItem("qrb-studio-section-" + details.getAttribute("data-qrb-accordion"), details.open ? "1" : "0"); } catch (e) {}
+    }, true);
+
     document.addEventListener("submit", function(event){
         var form = event.target.closest(".qrb-studio-form");
         if (!form) { return; }
-        dirty = false;
+        setDirty(false);
         var button = qs("button[type=submit], .qrb-submit", form);
         if (button) {
             button.classList.add("is-loading");
@@ -114,6 +129,16 @@
         if (!dirty) { return; }
         event.preventDefault();
         event.returnValue = "";
+    });
+
+    document.addEventListener("DOMContentLoaded", function(){
+        Array.prototype.slice.call(document.querySelectorAll("[data-qrb-accordion]")).forEach(function(details){
+            try {
+                var value = window.localStorage.getItem("qrb-studio-section-" + details.getAttribute("data-qrb-accordion"));
+                if (value === "1") { details.open = true; }
+                if (value === "0") { details.open = false; }
+            } catch (e) {}
+        });
     });
 
     window.qrbuzzRefreshPreview = refreshPreview;

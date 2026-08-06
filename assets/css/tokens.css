@@ -3,6 +3,7 @@
     --qrb-primary-hover: #115e59;
     --qrb-primary-active: #134e4a;
     --qrb-accent: #2563eb;
+    --qrb-accent-warm: #f97316;
     --qrb-bg: #f4f6f8;
     --qrb-surface: #ffffff;
     --qrb-surface-elevated: #ffffff;
@@ -51,12 +52,20 @@
     --qrb-topbar-height: 68px;
     --qrb-page-max: 1180px;
     --qrb-gutter: clamp(1rem, 2vw, 2rem);
-    --qrb-transition-fast: 120ms ease;
-    --qrb-transition: 180ms ease;
+    --qrb-motion-fast: 120ms;
+    --qrb-motion-standard: 180ms;
+    --qrb-motion-slow: 240ms;
+    --qrb-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --qrb-ease-emphasised: cubic-bezier(0.2, 0, 0, 1.2);
+    --qrb-transition-fast: var(--qrb-motion-fast) var(--qrb-ease-standard);
+    --qrb-transition: var(--qrb-motion-standard) var(--qrb-ease-standard);
 }
 
 @media (prefers-reduced-motion: reduce) {
     .qrb-body {
+        --qrb-motion-fast: 0ms;
+        --qrb-motion-standard: 0ms;
+        --qrb-motion-slow: 0ms;
         --qrb-transition-fast: 0ms linear;
         --qrb-transition: 0ms linear;
     }

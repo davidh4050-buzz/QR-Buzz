@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.8
+- Added shared motion, easing, button, focus, tooltip, loading, QR block motif, usage bar, and dismissible tip patterns for the hosted workspace
+- Refined the workspace dashboard welcome area, quick actions, activity timeline, metrics, usage presentation, and first-use guidance
+- Improved QR Library card interactions with restrained hover/focus lift, QR artwork framing, status accent strips, health indicators, and clearer primary/secondary actions
+- Added deterministic QR health messaging for active, quiet, paused, and expired QR states
+- Improved QR Studio with progressive disclosure sections, persisted accordion state, unsaved-change indicator, improved preview loading feedback, and contextual help
+- Refined per-QR detail sections with anchored Analytics and Smart Destinations blocks, clearer tooltips, matched-rule emphasis, and plain-language analytics observations
+- Added dismissible workspace tips and accessible dismissible success notifications
+- Improved table hover/focus readability, analytics chart interactions, and reduced-motion handling
+- Updated documentation for v0.9.8 design principles, component states, motion, accessibility, and manual design QA
+- Updated plugin metadata for v0.9.8
+
 ## 0.9.7
 - Added dedicated `/platform-admin/*` platform administration area with QR Buzz application styling
 - Added `qrbuzz_manage_platform` capability and QR Buzz Platform Admin role
