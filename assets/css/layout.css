@@ -123,6 +123,12 @@
     margin-left: auto;
 }
 
+.qrb-topbar-actions .qrb-button-primary {
+    font-size: 0.95rem;
+    min-height: 44px;
+    padding: 0.65rem 1rem;
+}
+
 .qrb-main {
     margin: 0 auto;
     max-width: var(--qrb-page-max);

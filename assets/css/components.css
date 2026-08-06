@@ -58,11 +58,16 @@
     background: var(--qrb-primary);
     border-color: var(--qrb-primary);
     color: #fff;
+    font-weight: var(--qrb-weight-bold);
 }
 
 .qrb-button-primary:hover {
     background: var(--qrb-primary-hover);
     border-color: var(--qrb-primary-hover);
+    color: #fff;
+}
+
+.qrb-button-primary:visited {
     color: #fff;
 }
 
@@ -96,6 +101,11 @@
     justify-content: center;
     padding: 0;
     width: 36px;
+}
+
+.qrb-button-primary .qrb-icon,
+.qrb-button-primary span {
+    color: #fff;
 }
 
 .qrb-button[disabled],
@@ -441,6 +451,37 @@
     background: var(--qrb-chart-2);
     opacity: 0.9;
     transform: translateY(-2px);
+}
+
+.qrb-metrics-compact {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.qrb-smart-rule-form {
+    background: #f8fafc;
+    border: 1px solid var(--qrb-border);
+    border-radius: var(--qrb-radius);
+    display: grid;
+    gap: var(--qrb-space-3);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: var(--qrb-space-4);
+}
+
+.qrb-smart-rule-form .qrb-form-wide {
+    grid-column: 1 / -1;
+}
+
+.qrb-smart-rule-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--qrb-space-2);
+}
+
+.qrb-smart-rule-list {
+    display: grid;
+    gap: var(--qrb-space-4);
+    margin: var(--qrb-space-4) 0 var(--qrb-space-6);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -76,8 +76,10 @@
 @media (max-width: 560px) {
     .qrb-filterbar,
     .qrb-metrics,
+    .qrb-metrics-compact,
     .qrb-dashboard-grid,
-    .qrb-card-grid {
+    .qrb-card-grid,
+    .qrb-smart-rule-form {
         grid-template-columns: 1fr;
     }
 

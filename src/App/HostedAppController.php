@@ -96,6 +96,7 @@ class HostedAppController {
         if ($path === 'app/onboarding') { $this->postOnboarding(); }
         if ($path === 'app/qr/new') { $this->postQrStudio(); }
         if (preg_match('#^app/qr/(\d+)/studio$#', $path, $m)) { $this->postQrStudio((int) $m[1]); }
+        if (preg_match('#^app/qr/(\d+)/smart-destinations$#', $path, $m)) { $this->postSmartDestination((int) $m[1]); }
         if ($path === 'app/campaigns') { $this->postCampaign(); }
         if (preg_match('#^app/campaigns/(\d+)$#', $path, $m)) { $this->postCampaign((int) $m[1]); }
         if ($path === 'app/settings/account') { $this->postAccount(); }
@@ -177,6 +178,35 @@ class HostedAppController {
         $newId = $this->qrCodes->create($name, $destination, $settings);
         $this->completeOnboarding();
         $this->redirect('/app/qr/' . $newId . '?created=1');
+    }
+
+    private function postSmartDestination(int $qrId): void {
+        check_admin_referer('qrbuzz_app_smart_' . $qrId, 'nonce');
+        $qr = $this->qrCodes->find($qrId);
+        if (!$qr || !$qr->isTrackable()) { $this->redirect('/app/library?error=missing'); }
+        if (!$this->entitlements->allows('smart_destinations')) { $this->redirect('/app/qr/' . $qrId . '?error=smart_locked#smart-destinations'); }
+        $action = sanitize_key((string) ($_POST['smart_action'] ?? 'create'));
+        $ruleId = absint($_POST['rule_id'] ?? 0);
+        if ($action === 'delete' && $ruleId > 0) {
+            $rule = $this->rules->find($ruleId);
+            if ($rule && $rule->qrId === $qrId) { $this->rules->delete($ruleId, get_current_user_id()); }
+            $this->redirect('/app/qr/' . $qrId . '?saved=1#smart-destinations');
+        }
+        if (in_array($action, ['activate', 'deactivate'], true) && $ruleId > 0) {
+            $rule = $this->rules->find($ruleId);
+            if ($rule && $rule->qrId === $qrId) { $this->rules->setStatus($ruleId, $action === 'activate' ? 'active' : 'inactive', get_current_user_id()); }
+            $this->redirect('/app/qr/' . $qrId . '?saved=1#smart-destinations');
+        }
+        if ($action === 'create' && !$this->entitlements->canCreateSmartRule($qrId)) { $this->redirect('/app/qr/' . $qrId . '?error=smart_limit#smart-destinations'); }
+        $data = $this->smartRuleDataFromPost();
+        if ($data['name'] === '' || $data['destination_url'] === '') { $this->redirect('/app/qr/' . $qrId . '?error=smart_invalid#smart-destinations'); }
+        if ($action === 'update' && $ruleId > 0) {
+            $rule = $this->rules->find($ruleId);
+            if ($rule && $rule->qrId === $qrId) { $this->rules->update($ruleId, $data, get_current_user_id()); }
+        } else {
+            $this->rules->create($qrId, $data, get_current_user_id());
+        }
+        $this->redirect('/app/qr/' . $qrId . '?saved=1#smart-destinations');
     }
 
     private function postCampaign(int $id = 0): void {
@@ -362,20 +392,39 @@ class HostedAppController {
         $html .= $this->metrics([['Current result',$resolution->shouldRedirect ? 'Redirect' : 'Message'],['Reason',$this->resolutionReasonLabel($resolution->reason)],['Status',$resolution->scanStatus],['Active rule',$resolution->matchedRuleName ?: '-']]);
         if ($resolution->matchedRuleName) { $html .= '<p class="qrb-alert qrb-alert-success">Matched rule: ' . esc_html($resolution->matchedRuleName) . '</p>'; }
         $html .= '<p><strong>Resolved destination:</strong> ' . esc_html($destination ?: '-') . '</p>';
-        $html .= '<table class="qrb-table"><thead><tr><th>Priority</th><th>Rule</th><th>Status</th><th>Destination</th><th>Conditions</th></tr></thead><tbody>';
-        if (!$rules) { $html .= '<tr><td colspan="5">No Smart Destination rules yet. The primary destination is currently used.</td></tr>'; }
+        if (!empty($_GET['error']) && str_starts_with((string) $_GET['error'], 'smart_')) { $html .= '<p class="qrb-alert">Smart Destination changes could not be saved. Check the rule name, destination URL and plan limits.</p>'; }
+        $html .= '<div class="qrb-smart-rule-list">';
+        if (!$rules) { $html .= '<p class="qrb-empty">No Smart Destination rules yet. The primary destination is currently used.</p>'; }
         foreach ($rules as $rule) { $html .= $this->smartDestinationRuleRow($rule); }
-        return $html . '</tbody></table></section>';
+        return $html . '</div><h3>Add Smart Destination rule</h3>' . $this->smartDestinationRuleForm($qr->id) . '</section>';
     }
 
     private function smartDestinationRuleRow(DestinationRule $rule): string {
-        return '<tr><td>' . esc_html((string) $rule->priority) . '</td><td>' . esc_html($rule->name) . '</td><td>' . esc_html(ucfirst($rule->status)) . '</td><td>' . esc_html($rule->destinationUrl) . '</td><td>' . esc_html($this->ruleConditionLabel($rule)) . '</td></tr>';
+        $toggle = $rule->status === 'active' ? 'deactivate' : 'activate';
+        $html = '<form class="qrb-form qrb-smart-rule-form" method="post" action="' . esc_url(home_url('/app/qr/' . $rule->qrId . '/smart-destinations')) . '">';
+        $html .= wp_nonce_field('qrbuzz_app_smart_' . $rule->qrId, 'nonce', true, false) . '<input type="hidden" name="smart_action" value="update"><input type="hidden" name="rule_id" value="' . esc_attr((string) $rule->id) . '"><input type="hidden" name="status" value="' . esc_attr($rule->status) . '">';
+        $html .= '<label>Rule name<input name="name" value="' . esc_attr($rule->name) . '" required></label><label>Priority<input name="priority" type="number" min="1" value="' . esc_attr((string) $rule->priority) . '"></label>';
+        $html .= '<label class="qrb-form-wide">Destination URL<input name="destination_url" type="url" value="' . esc_attr($rule->destinationUrl) . '" required></label>';
+        $html .= '<label>Start<input name="starts_at" type="datetime-local" value="' . esc_attr($this->localInput($rule->startsAt)) . '"></label><label>End<input name="ends_at" type="datetime-local" value="' . esc_attr($this->localInput($rule->endsAt)) . '"></label>';
+        $html .= '<label>Days of week<input name="days_of_week" value="' . esc_attr($rule->daysOfWeek ?: '') . '" placeholder="1,2,3,4,5"></label><label>Time window<input name="time_start" type="time" value="' . esc_attr($rule->timeStart ?: '') . '"><input name="time_end" type="time" value="' . esc_attr($rule->timeEnd ?: '') . '"></label>';
+        $html .= '<div class="qrb-form-wide qrb-smart-rule-actions">' . $this->statusBadge($rule->status) . '<span class="qrb-help">' . esc_html($this->ruleConditionLabel($rule)) . '</span><button class="qrb-button qrb-button-primary">Save rule</button><button class="qrb-button" name="smart_action" value="' . esc_attr($toggle) . '">' . esc_html($toggle === 'activate' ? 'Activate' : 'Deactivate') . '</button><button class="qrb-button qrb-button-danger" name="smart_action" value="delete" onclick="return confirm(\'Delete this Smart Destination rule?\')">Delete</button></div>';
+        return $html . '</form>';
+    }
+
+    private function smartDestinationRuleForm(int $qrId): string {
+        $html = '<form class="qrb-form qrb-smart-rule-form" method="post" action="' . esc_url(home_url('/app/qr/' . $qrId . '/smart-destinations')) . '">';
+        $html .= wp_nonce_field('qrbuzz_app_smart_' . $qrId, 'nonce', true, false) . '<input type="hidden" name="smart_action" value="create">';
+        $html .= '<label>Rule name<input name="name" placeholder="Weekday lunch offer" required></label><label>Priority<input name="priority" type="number" min="1" value="10"></label>';
+        $html .= '<label class="qrb-form-wide">Destination URL<input name="destination_url" type="url" placeholder="https://example.com/lunch" required></label>';
+        $html .= '<label>Start<input name="starts_at" type="datetime-local"></label><label>End<input name="ends_at" type="datetime-local"></label>';
+        $html .= '<label>Days of week<input name="days_of_week" placeholder="1,2,3,4,5"></label><label>Time window<input name="time_start" type="time"><input name="time_end" type="time"></label>';
+        return $html . '<div class="qrb-form-wide qrb-smart-rule-actions"><button class="qrb-button qrb-button-primary">Add rule</button><span class="qrb-help">Days use 1 to 7 for Monday to Sunday. Leave conditions blank for an always-active rule.</span></div></form>';
     }
 
     private function qrAnalyticsBlock(QRCode $qr): string {
         if (!$qr->isTrackable()) { return '<section id="analytics" class="qrb-card"><h2>Analytics ' . $this->tooltip('Static QR codes do not pass through QR Buzz, so scan tracking is not available for them.') . '</h2><p>Static QR codes do not use QR Buzz tracking. To collect analytics, create a Dynamic URL QR code.</p></section>'; }
         $stats = $this->perQrAnalytics->stats($qr->id);
-        $html = '<section id="analytics" class="qrb-card"><h2>Analytics ' . $this->tooltip('Analytics are collected when dynamic QR codes are scanned through their QR Buzz tracking URL.') . '</h2>' . $this->analyticsObservation((int) $stats['total_scans'], (int) $stats['scans_today'], (int) $stats['scans_last_7_days']) . $this->metrics([['Total scans',$stats['total_scans']],['Today',$stats['scans_today']],['Last 7 days',$stats['scans_last_7_days']],['Last 30 days',$stats['scans_last_30_days']],['Latest scan',$stats['latest_scan'] ?: '-']]);
+        $html = '<section id="analytics" class="qrb-card"><h2>Analytics ' . $this->tooltip('Analytics are collected when dynamic QR codes are scanned through their QR Buzz tracking URL.') . '</h2>' . $this->analyticsObservation((int) $stats['total_scans'], (int) $stats['scans_today'], (int) $stats['scans_last_7_days']) . $this->metricsCompact([['Total scans',$stats['total_scans']],['Today',$stats['scans_today']],['Last 7 days',$stats['scans_last_7_days']],['Last 30 days',$stats['scans_last_30_days']],['Latest scan',$stats['latest_scan'] ?: '-']]);
         if ($this->entitlements->allows('advanced_analytics')) { $html .= '<h3>Trend</h3>' . $this->barChart($this->perQrAnalytics->scanCountsByDay($qr->id, 30)) . '<div class="qrb-analytics-grid"><div><h3>Devices</h3>' . $this->breakdownTable($this->perQrAnalytics->deviceBreakdown($qr->id)) . '</div><div><h3>Browsers</h3>' . $this->breakdownTable($this->perQrAnalytics->browserBreakdown($qr->id)) . '</div><div><h3>Referrers</h3>' . $this->breakdownTable($this->perQrAnalytics->referrerBreakdown($qr->id)) . '</div></div><h3>Recent scans</h3>' . $this->recentScansTable($this->perQrAnalytics->recentScans($qr->id, 10)); }
         return $html . '</section>';
     }
@@ -417,6 +466,7 @@ class HostedAppController {
     private function redirectAfterLogin(): void { $w = $this->workspaces->current(); $this->redirect($w->onboardingComplete() ? '/app/dashboard' : '/app/onboarding'); }
     private function completeOnboarding(): void { $this->workspaceRepo->updateOnboarding($this->workspaces->id(), 'complete', 'complete'); $this->profiles->updateOnboarding(get_current_user_id(), 'complete', 'complete'); }
     private function payloadFromPost(string $type): array { $payload = isset($_POST['payload']) && is_array($_POST['payload']) ? wp_unslash($_POST['payload']) : []; $clean = []; foreach ($payload as $key => $value) { $clean[sanitize_key((string) $key)] = is_scalar($value) ? sanitize_textarea_field((string) $value) : ''; } if ($type === 'dynamic_url') { $clean['destination_url'] = esc_url_raw($clean['destination_url'] ?? ''); } if ($type === 'static_url') { $clean['url'] = esc_url_raw($clean['url'] ?? $clean['destination_url'] ?? ''); } if ($type === 'vcard' && isset($clean['website'])) { $clean['website'] = esc_url_raw($clean['website']); } if ($type === 'email' && isset($clean['recipient'])) { $clean['recipient'] = sanitize_email($clean['recipient']); } $clean['hidden'] = !empty($payload['hidden']) ? '1' : ''; return $clean; }
+    private function smartRuleDataFromPost(): array { $status = sanitize_key((string) ($_POST['status'] ?? 'active')); return ['name' => sanitize_text_field((string) ($_POST['name'] ?? '')), 'priority' => absint($_POST['priority'] ?? 10), 'status' => $status === 'inactive' ? 'inactive' : 'active', 'destination_url' => esc_url_raw((string) ($_POST['destination_url'] ?? '')), 'starts_at' => $this->optionalDateTime('starts_at'), 'ends_at' => $this->optionalDateTime('ends_at'), 'days_of_week' => preg_replace('/[^0-9,]/', '', sanitize_text_field((string) ($_POST['days_of_week'] ?? ''))), 'time_start' => sanitize_text_field((string) ($_POST['time_start'] ?? '')), 'time_end' => sanitize_text_field((string) ($_POST['time_end'] ?? ''))]; }
     private function usageCard(): string { $e = $this->entitlements->summary(); return '<section class="qrb-card"><h2>Usage</h2>' . $this->usageRow('QR assets', (int) $e['usage']['qr_assets'], $e['limits']['qr_assets']) . $this->usageRow('Campaigns', (int) $e['usage']['campaigns'], $e['limits']['campaigns']) . '</section>'; }
     private function usageRow(string $label, int $used, $limit): string { $limitLabel = $limit === null ? 'Unlimited' : (string) $limit; $percent = $limit === null || (int) $limit <= 0 ? 100 : min(100, (int) round(($used / (int) $limit) * 100)); $remaining = $limit === null ? 'Unlimited remaining' : max(0, (int) $limit - $used) . ' remaining'; return '<div class="qrb-card-meta"><span><strong>' . esc_html($label) . '</strong></span><span>' . esc_html((string) $used) . ' / ' . esc_html($limitLabel) . ' · ' . esc_html($remaining) . '</span><div class="qrb-usage-bar" aria-hidden="true"><span style="width:' . esc_attr((string) $percent) . '%"></span></div></div>'; }
     private function tip(string $key, string $message): string { return '<div class="qrb-tip" data-qrb-dismissible="' . esc_attr($key) . '"><p>' . esc_html($message) . '</p><button type="button" class="qrb-toast-close" data-qrb-dismiss aria-label="Dismiss tip">Dismiss</button></div>'; }
@@ -437,6 +487,7 @@ class HostedAppController {
         return '<p class="qrb-tip">This QR has scan history, but no scans in the current 7 day window.</p>';
     }
     private function metrics(array $metrics): string { $html = '<div class="qrb-metrics">'; foreach ($metrics as $m) { $html .= '<div class="qrb-card qrb-metric"><span>' . esc_html((string) $m[0]) . '</span><strong>' . esc_html((string) $m[1]) . '</strong>' . (isset($m[2]) ? '<small>' . esc_html((string) $m[2]) . '</small>' : '') . '</div>'; } return $html . '</div>'; }
+    private function metricsCompact(array $metrics): string { $html = '<div class="qrb-metrics qrb-metrics-compact">'; foreach ($metrics as $m) { $html .= '<div class="qrb-card qrb-metric"><span>' . esc_html((string) $m[0]) . '</span><strong>' . esc_html((string) $m[1]) . '</strong>' . (isset($m[2]) ? '<small>' . esc_html((string) $m[2]) . '</small>' : '') . '</div>'; } return $html . '</div>'; }
     private function pageHeader(string $title, string $description, string $actions = ''): string { return '<div class="qrb-page-header"><div><h1>' . esc_html($title) . '</h1><p>' . esc_html($description) . '</p></div><div class="qrb-actions">' . $actions . '</div></div>'; }
     private function emptyState(string $title, string $description, string $url, string $label): string { return '<section class="qrb-empty"><h2>' . esc_html($title) . '</h2><p>' . esc_html($description) . '</p><a class="qrb-button qrb-button-primary" href="' . esc_url(home_url($url)) . '">' . esc_html($label) . '</a></section>'; }
     private function statusBadge(string $status): string { $class = $status === 'active' ? 'qrb-badge-success' : ($status === 'expired' ? 'qrb-badge-danger' : ($status === 'scheduled' ? 'qrb-badge-info' : 'qrb-badge-warning')); return '<span class="qrb-badge ' . esc_attr($class) . '">' . esc_html(ucfirst($status)) . '</span>'; }
@@ -488,7 +539,7 @@ class HostedAppController {
     private function page(string $title, string $content): void { status_header(200); nocache_headers(); echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . esc_html($title) . '</title>' . $this->styles() . '</head><body class="qrb-body"><main class="qrb-public"><a class="qrb-brand" href="/"><span class="qrb-brand-mark">QR</span><span>QR Buzz</span></a>' . $content . '</main></body></html>'; exit; }
     private function app(string $title, string $content): void {
         status_header(200); nocache_headers(); $this->enqueueAppAssets(); $w = $this->workspaces->current(); $user = wp_get_current_user();
-        echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . esc_html($title) . '</title>' . $this->styles() . $this->headAssets() . '</head><body class="qrb-body"><a class="qrb-skip-link" href="#qrb-main">Skip to content</a><div class="qrb-mobile-backdrop" data-qrb-drawer-close></div><div class="qrb-shell"><aside class="qrb-sidebar" aria-label="Workspace navigation"><a class="qrb-brand" href="/app/dashboard"><span class="qrb-brand-mark">QR</span><span>QR Buzz</span></a>' . $this->navigation() . '</aside><div class="qrb-app-frame"><header class="qrb-topbar"><button type="button" class="qrb-button qrb-mobile-menu" data-qrb-drawer-toggle aria-controls="qrb-sidebar" aria-expanded="false">' . $this->icon('menu') . '<span>Menu</span></button><div class="qrb-workspace"><span>Workspace</span><strong>' . esc_html($w->name) . '</strong></div><div class="qrb-topbar-actions"><a class="qrb-button" href="/app/qr/new">' . $this->icon('plus') . '<span>New QR</span></a><a class="qrb-button" href="/app/settings/billing">Billing</a><a class="qrb-button" href="/logout">' . esc_html($user->display_name ?: 'Logout') . '</a></div></header><main id="qrb-main" class="qrb-main">' . $this->flash() . $content . '</main></div></div>' . $this->appScripts() . $this->footerAssets() . '</body></html>'; exit;
+        echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . esc_html($title) . '</title>' . $this->styles() . $this->headAssets() . '</head><body class="qrb-body"><a class="qrb-skip-link" href="#qrb-main">Skip to content</a><div class="qrb-mobile-backdrop" data-qrb-drawer-close></div><div class="qrb-shell"><aside class="qrb-sidebar" aria-label="Workspace navigation"><a class="qrb-brand" href="/app/dashboard"><span class="qrb-brand-mark">QR</span><span>QR Buzz</span></a>' . $this->navigation() . '</aside><div class="qrb-app-frame"><header class="qrb-topbar"><button type="button" class="qrb-button qrb-mobile-menu" data-qrb-drawer-toggle aria-controls="qrb-sidebar" aria-expanded="false">' . $this->icon('menu') . '<span>Menu</span></button><div class="qrb-workspace"><span>Workspace</span><strong>' . esc_html($w->name) . '</strong></div><div class="qrb-topbar-actions"><a class="qrb-button qrb-button-primary" href="/app/qr/new">' . $this->icon('plus') . '<span>New QR</span></a><a class="qrb-button" href="/app/settings/billing">Billing</a><a class="qrb-button" href="/logout">' . esc_html($user->display_name ?: 'Logout') . '</a></div></header><main id="qrb-main" class="qrb-main">' . $this->flash() . $content . '</main></div></div>' . $this->appScripts() . $this->footerAssets() . '</body></html>'; exit;
     }
     private function styles(): string { return '<style>' . $this->asset('assets/css/tokens.css') . $this->asset('assets/css/reset.css') . $this->asset('assets/css/base.css') . $this->asset('assets/css/typography.css') . $this->asset('assets/css/layout.css') . $this->asset('assets/css/components.css') . $this->asset('assets/css/forms.css') . $this->asset('assets/css/tables.css') . $this->asset('assets/css/utilities.css') . $this->asset('assets/css/pages/dashboard.css') . $this->asset('assets/css/pages/library.css') . $this->asset('assets/css/pages/qr-studio.css') . $this->asset('assets/css/pages/campaigns.css') . $this->asset('assets/css/pages/analytics.css') . $this->asset('assets/css/pages/brand-kit.css') . $this->asset('assets/css/pages/onboarding.css') . $this->asset('assets/css/pages/settings.css') . $this->asset('assets/css/responsive.css') . '</style>'; }
     private function navigation(): string {
