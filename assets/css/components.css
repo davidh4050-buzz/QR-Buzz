@@ -89,6 +89,15 @@
     color: var(--qrb-danger);
 }
 
+.qrb-icon-button {
+    align-items: center;
+    border-radius: var(--qrb-radius-sm);
+    height: 36px;
+    justify-content: center;
+    padding: 0;
+    width: 36px;
+}
+
 .qrb-button[disabled],
 .qrb-button.is-loading {
     cursor: not-allowed;
@@ -122,10 +131,10 @@
     padding: 0.2rem 0.55rem;
 }
 
-.qrb-badge-success { background: #ecfdf5; border-color: #bbf7d0; color: var(--qrb-success); }
-.qrb-badge-warning { background: #fffbeb; border-color: #fde68a; color: var(--qrb-warning); }
+.qrb-badge-success { background: #e8f8f5; border-color: #b9e7df; color: #12695f; }
+.qrb-badge-warning { background: #fff8e6; border-color: #f7d781; color: var(--qrb-warning); }
 .qrb-badge-danger { background: #fef2f2; border-color: #fecaca; color: var(--qrb-danger); }
-.qrb-badge-info { background: #eff6ff; border-color: #bfdbfe; color: var(--qrb-info); }
+.qrb-badge-info { background: #e8f8f5; border-color: #b9e7df; color: #12695f; }
 .qrb-badge-muted { background: #f1f5f9; border-color: #dbe3ed; color: var(--qrb-muted); }
 
 .qrb-alert {
@@ -154,7 +163,6 @@
 }
 
 .qrb-empty::before,
-.qrb-hero::after,
 .qrb-loading::before {
     background:
         linear-gradient(var(--qrb-primary), var(--qrb-primary)) 0 0 / 8px 8px no-repeat,

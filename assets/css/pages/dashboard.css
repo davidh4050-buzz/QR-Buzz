@@ -4,14 +4,6 @@
     position: relative;
 }
 
-.qrb-hero::after {
-    margin: 0;
-    opacity: 0.18;
-    position: absolute;
-    right: var(--qrb-space-5);
-    top: var(--qrb-space-5);
-}
-
 .qrb-hero h1 {
     font-size: var(--qrb-font-size-2xl);
     margin: 0 0 var(--qrb-space-2);
