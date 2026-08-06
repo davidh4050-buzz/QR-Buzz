@@ -11,6 +11,10 @@
     top: calc(var(--qrb-topbar-height) + var(--qrb-space-4));
 }
 
+.qrb-studio-form {
+    border-color: var(--qrb-primary);
+}
+
 .qrb-live-preview {
     align-items: center;
     background: #dddddd;
@@ -84,6 +88,22 @@
     display: grid;
     gap: var(--qrb-space-3);
     padding: var(--qrb-space-4);
+}
+
+.qrb-date-time-parts {
+    border: 1px solid var(--qrb-border);
+    border-radius: var(--qrb-radius-sm);
+    display: grid;
+    gap: var(--qrb-space-3);
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 190px);
+    padding: var(--qrb-space-3);
+}
+
+.qrb-date-time-parts legend {
+    color: var(--qrb-text);
+    font-size: var(--qrb-font-size-sm);
+    font-weight: var(--qrb-weight-medium);
+    padding: 0 var(--qrb-space-1);
 }
 
 .qrb-sticky-actions {
