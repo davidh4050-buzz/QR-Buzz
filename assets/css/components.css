@@ -493,7 +493,7 @@
     gap: var(--qrb-space-2);
 }
 
-.qrb-day-picker {
+.qrb-form fieldset.qrb-day-picker {
     border: 1px solid var(--qrb-border);
     border-radius: var(--qrb-radius-sm);
     display: flex;
@@ -504,7 +504,7 @@
     width: fit-content;
 }
 
-.qrb-day-picker.qrb-form-wide {
+.qrb-form fieldset.qrb-day-picker.qrb-form-wide {
     justify-self: start;
 }
 
@@ -515,16 +515,24 @@
     padding: 0 var(--qrb-space-1);
 }
 
-.qrb-day-picker label {
+.qrb-form .qrb-day-picker label {
     align-items: center;
     cursor: pointer;
     display: inline-flex;
     gap: var(--qrb-space-1);
+    position: relative;
 }
 
-.qrb-day-picker input {
+.qrb-form .qrb-day-picker input[type="checkbox"] {
+    border: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
     height: 1px;
+    margin: 0;
+    min-height: 0;
     opacity: 0;
+    overflow: hidden;
+    padding: 0;
     position: absolute;
     width: 1px;
 }
