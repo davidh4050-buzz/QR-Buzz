@@ -99,6 +99,10 @@
     padding: var(--qrb-space-3);
 }
 
+.qrb-date-time-parts.qrb-time-range {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .qrb-date-time-parts legend {
     color: var(--qrb-text);
     font-size: var(--qrb-font-size-sm);

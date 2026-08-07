@@ -39,6 +39,18 @@
     margin-bottom: var(--qrb-space-6);
 }
 
+.qrb-brand-logo {
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: var(--qrb-radius-sm);
+    padding: 0.45rem;
+}
+
+.qrb-brand-logo img {
+    display: block;
+    height: auto;
+    width: 100%;
+}
+
 .qrb-brand-mark {
     align-items: center;
     background: var(--qrb-primary);

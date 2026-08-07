@@ -30,7 +30,7 @@
             return;
         }
 
-        var dismiss = event.target.closest("[data-qrb-dismiss]");
+        var dismiss = event.target.closest("[data-qrb-dismiss], [data-qrb-toast-close], .qrb-toast-close");
         if (dismiss) {
             event.preventDefault();
             var target = dismiss.closest("[data-qrb-dismissible]");
@@ -38,15 +38,10 @@
                 var key = target.getAttribute("data-qrb-dismissible");
                 target.hidden = true;
                 try { window.localStorage.setItem("qrb-dismissed-" + key, "1"); } catch (e) {}
+                return;
             }
-            return;
-        }
-
-        var toastClose = event.target.closest("[data-qrb-toast-close]");
-        if (toastClose) {
-            event.preventDefault();
-            var toast = toastClose.closest("[data-qrb-toast]");
-            if (toast) { toast.hidden = true; }
+            target = dismiss.closest("[data-qrb-toast], .qrb-toast, .qrb-tip, .qrb-alert");
+            if (target) { target.hidden = true; }
             return;
         }
 
