@@ -129,6 +129,10 @@
     padding: 0.65rem 1rem;
 }
 
+.qrb-account-button {
+    border-radius: 999px;
+}
+
 .qrb-main {
     margin: 0 auto;
     max-width: var(--qrb-page-max);

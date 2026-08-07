@@ -103,6 +103,50 @@
     width: 36px;
 }
 
+.qrb-download-menu {
+    position: relative;
+}
+
+.qrb-download-menu summary {
+    list-style: none;
+}
+
+.qrb-download-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.qrb-download-menu[open] summary {
+    border-color: var(--qrb-primary);
+    color: var(--qrb-primary);
+}
+
+.qrb-download-menu > div {
+    background: #fff;
+    border: 1px solid var(--qrb-border);
+    border-radius: var(--qrb-radius-sm);
+    box-shadow: var(--qrb-shadow-subtle);
+    display: grid;
+    min-width: 140px;
+    padding: var(--qrb-space-1);
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 30;
+}
+
+.qrb-download-menu a {
+    border-radius: var(--qrb-radius-sm);
+    color: var(--qrb-text);
+    padding: 0.55rem 0.7rem;
+    text-decoration: none;
+}
+
+.qrb-download-menu a:hover,
+.qrb-download-menu a:focus {
+    background: #f1f5f9;
+    color: var(--qrb-primary);
+}
+
 .qrb-color-control {
     align-items: center;
     display: flex;
@@ -116,6 +160,22 @@
 .qrb-color-control input[type="text"] {
     max-width: 112px;
     text-transform: lowercase;
+}
+
+.qrb-inline-check {
+    align-items: center;
+    display: inline-flex;
+    gap: var(--qrb-space-2);
+    width: fit-content;
+}
+
+.qrb-form .qrb-inline-check {
+    display: inline-flex;
+}
+
+.qrb-inline-check input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin: 0;
 }
 
 .qrb-button-primary .qrb-icon,

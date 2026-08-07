@@ -56,7 +56,9 @@
     }
 
     .qrb-topbar-actions {
+        gap: var(--qrb-space-3);
         margin-left: 0;
+        padding-bottom: var(--qrb-space-2);
     }
 
     .qrb-main {
@@ -70,6 +72,16 @@
 
     .qrb-studio-preview {
         position: static;
+    }
+
+    .qrb-qr-detail-head {
+        align-items: flex-start;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .qrb-detail-actions {
+        justify-content: flex-end;
     }
 }
 
@@ -92,5 +104,10 @@
     .qrb-card,
     .qrb-hero {
         padding: var(--qrb-space-4);
+    }
+
+    .qrb-detail-actions {
+        align-items: flex-end;
+        flex-direction: column;
     }
 }
