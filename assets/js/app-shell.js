@@ -30,6 +30,21 @@
             return;
         }
 
+        var dismiss = event.target.closest("[data-qrb-dismiss], [data-qrb-toast-close], .qrb-toast-close");
+        if (dismiss) {
+            event.preventDefault();
+            var target = dismiss.closest("[data-qrb-dismissible]");
+            if (target) {
+                var key = target.getAttribute("data-qrb-dismissible");
+                target.hidden = true;
+                try { window.localStorage.setItem("qrb-dismissed-" + key, "1"); } catch (e) {}
+                return;
+            }
+            target = dismiss.closest("[data-qrb-toast], .qrb-toast, .qrb-tip, .qrb-alert");
+            if (target) { target.hidden = true; }
+            return;
+        }
+
         var viewButton = event.target.closest("[data-qrb-view]");
         if (viewButton) {
             event.preventDefault();
@@ -49,6 +64,11 @@
         try { preferred = window.localStorage.getItem("qrb-library-view") || preferred; } catch (e) {}
         var button = qs("[data-qrb-view=\"" + preferred + "\"]");
         if (button) { button.click(); }
+
+        qsa("[data-qrb-dismissible]").forEach(function(tip){
+            var key = tip.getAttribute("data-qrb-dismissible");
+            try { if (window.localStorage.getItem("qrb-dismissed-" + key) === "1") { tip.hidden = true; } } catch (e) {}
+        });
     });
 
     window.QRBuzzUI = { qs: qs, qsa: qsa, closeDrawer: closeDrawer };

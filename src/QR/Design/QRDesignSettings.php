@@ -20,6 +20,7 @@ class QRDesignSettings {
     public string $caption;
     public int $captionFontSize;
     public string $captionFontColor;
+    public string $captionFontFamily;
 
     public function __construct(array $settings = []) {
         $this->theme = self::sanitizeTheme((string) ($settings['theme'] ?? 'classic'));
@@ -37,6 +38,7 @@ class QRDesignSettings {
         $this->caption = self::sanitizeCaption((string) ($settings['caption'] ?? ''));
         $this->captionFontSize = self::sanitizeCaptionFontSize($settings['caption_font_size'] ?? 16);
         $this->captionFontColor = self::sanitizeColor((string) ($settings['caption_font_color'] ?? '#000000'), '#000000');
+        $this->captionFontFamily = self::sanitizeCaptionFontFamily((string) ($settings['caption_font_family'] ?? 'arial'));
     }
 
     public static function defaults(): self {
@@ -60,6 +62,7 @@ class QRDesignSettings {
             'caption' => $qrCode->caption,
             'caption_font_size' => $qrCode->captionFontSize,
             'caption_font_color' => $qrCode->captionFontColor,
+            'caption_font_family' => $qrCode->captionFontFamily,
         ]);
     }
 
@@ -82,6 +85,7 @@ class QRDesignSettings {
             'caption' => isset($post['caption']) ? sanitize_text_field(wp_unslash($post['caption'])) : $fallback->caption,
             'caption_font_size' => isset($post['caption_font_size']) ? absint($post['caption_font_size']) : $fallback->captionFontSize,
             'caption_font_color' => isset($post['caption_font_color']) ? sanitize_text_field(wp_unslash($post['caption_font_color'])) : $fallback->captionFontColor,
+            'caption_font_family' => isset($post['caption_font_family']) ? sanitize_key(wp_unslash($post['caption_font_family'])) : $fallback->captionFontFamily,
         ]);
     }
 
@@ -102,6 +106,7 @@ class QRDesignSettings {
             'caption' => $this->caption,
             'caption_font_size' => $this->captionFontSize,
             'caption_font_color' => $this->captionFontColor,
+            'caption_font_family' => $this->captionFontFamily,
         ];
     }
 
@@ -175,5 +180,20 @@ class QRDesignSettings {
 
     public static function sanitizeCaptionFontSize($size): int {
         return max(8, min(40, absint($size)));
+    }
+
+    public static function sanitizeCaptionFontFamily(string $family): string {
+        $family = sanitize_key($family);
+        return in_array($family, ['arial', 'georgia', 'verdana', 'trebuchet', 'courier'], true) ? $family : 'arial';
+    }
+
+    public function captionFontCss(): string {
+        return match ($this->captionFontFamily) {
+            'georgia' => 'Georgia, serif',
+            'verdana' => 'Verdana, Geneva, sans-serif',
+            'trebuchet' => '"Trebuchet MS", sans-serif',
+            'courier' => '"Courier New", monospace',
+            default => 'Arial, sans-serif',
+        };
     }
 }

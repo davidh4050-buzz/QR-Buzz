@@ -31,6 +31,15 @@
     border-bottom: 0;
 }
 
+.qrb-table tbody tr {
+    transition: background var(--qrb-transition);
+}
+
+.qrb-table tbody tr:hover,
+.qrb-table tbody tr:focus-within {
+    background: #f8fafc;
+}
+
 .qrb-table a {
     color: var(--qrb-primary);
     font-weight: var(--qrb-weight-medium);

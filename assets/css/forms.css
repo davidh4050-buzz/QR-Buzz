@@ -63,6 +63,19 @@
     width: auto;
 }
 
+.qrb-form label.qrb-inline-check {
+    align-items: center;
+    display: inline-flex;
+    gap: var(--qrb-space-2);
+    justify-content: flex-start;
+    width: fit-content;
+}
+
+.qrb-form label.qrb-inline-check input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
 .qrb-filterbar {
     align-items: end;
     display: grid;
