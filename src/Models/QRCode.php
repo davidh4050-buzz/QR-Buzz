@@ -40,6 +40,7 @@ class QRCode {
     public string $caption;
     public int $captionFontSize;
     public string $captionFontColor;
+    public string $captionFontFamily;
     public int $scanCount;
     public ?string $lastScan;
 
@@ -80,6 +81,7 @@ class QRCode {
         $qrCode->caption = isset($row->caption) ? (string) $row->caption : '';
         $qrCode->captionFontSize = isset($row->caption_font_size) ? (int) $row->caption_font_size : 16;
         $qrCode->captionFontColor = isset($row->caption_font_color) && (string) $row->caption_font_color !== '' ? (string) $row->caption_font_color : '#000000';
+        $qrCode->captionFontFamily = isset($row->caption_font_family) && (string) $row->caption_font_family !== '' ? (string) $row->caption_font_family : 'arial';
         $qrCode->scanCount = isset($row->scan_count) ? (int) $row->scan_count : 0;
         $qrCode->lastScan = isset($row->last_scan) && $row->last_scan !== null ? (string) $row->last_scan : null;
         return $qrCode;

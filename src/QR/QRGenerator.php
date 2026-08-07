@@ -215,7 +215,7 @@ class QRGenerator {
         $svg .= $this->svgLogo($design, $outerSize, $background);
 
         if ($design->caption !== '') {
-            $svg .= '<text x="' . esc_attr((string) ($outerSize / 2)) . '" y="' . esc_attr((string) ($outerSize + $design->captionFontSize + 8)) . '" text-anchor="middle" font-family="Arial, sans-serif" font-size="' . esc_attr((string) $design->captionFontSize) . '" fill="' . $this->svgEscape($design->captionFontColor) . '">' . $this->svgEscape($design->caption) . '</text>';
+            $svg .= '<text x="' . esc_attr((string) ($outerSize / 2)) . '" y="' . esc_attr((string) ($outerSize + $design->captionFontSize + 8)) . '" text-anchor="middle" font-family="' . esc_attr($design->captionFontCss()) . '" font-size="' . esc_attr((string) $design->captionFontSize) . '" fill="' . $this->svgEscape($design->captionFontColor) . '">' . $this->svgEscape($design->caption) . '</text>';
         }
 
         return $svg . '</svg>';

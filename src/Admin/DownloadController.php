@@ -26,14 +26,14 @@ class DownloadController {
 
     public function downloadPng(): void {
         $qrCode = $this->authorisedQrCode();
-        $content = $this->generator->generatePng($this->payloads->payloadForQrCode($qrCode), 600, QRDesignSettings::fromQrCode($qrCode));
+        $content = $this->generator->generatePng($this->payloads->payloadForQrCode($qrCode), 2000, QRDesignSettings::fromQrCode($qrCode));
 
         $this->sendDownload($content, $this->filename($qrCode, 'png'), 'image/png');
     }
 
     public function downloadSvg(): void {
         $qrCode = $this->authorisedQrCode();
-        $content = $this->generator->generateSvg($this->payloads->payloadForQrCode($qrCode), 600, QRDesignSettings::fromQrCode($qrCode));
+        $content = $this->generator->generateSvg($this->payloads->payloadForQrCode($qrCode), 2000, QRDesignSettings::fromQrCode($qrCode));
 
         $this->sendDownload($content, $this->filename($qrCode, 'svg'), 'image/svg+xml');
     }

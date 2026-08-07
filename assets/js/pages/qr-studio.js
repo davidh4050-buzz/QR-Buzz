@@ -45,6 +45,22 @@
         window.qrbuzzHostedPreviewTimer = setTimeout(refreshPreview, 450);
     }
 
+    function syncColorText(input){
+        var wrap = input.closest(".qrb-color-control");
+        var text = wrap ? qs("[data-qrb-color-text]", wrap) : null;
+        if (text) { text.value = input.value.toLowerCase(); }
+    }
+
+    function syncColorInput(text){
+        var value = text.value.trim();
+        if (!/^#[0-9a-fA-F]{6}$/.test(value)) { return false; }
+        var wrap = text.closest(".qrb-color-control");
+        var input = wrap ? qs("[data-qrb-color-input]", wrap) : null;
+        if (input) { input.value = value.toLowerCase(); }
+        text.value = value.toLowerCase();
+        return true;
+    }
+
     document.addEventListener("click", function(event){
         var refresh = event.target.closest(".qrb-refresh-preview");
         if (refresh) { event.preventDefault(); refreshPreview(); }
@@ -95,12 +111,19 @@
                 if (qs("[name=finder_color]", form)) {
                     qs("[name=finder_color]", form).value = option.dataset.foreground || "#000000";
                 }
+                Array.prototype.slice.call(form.querySelectorAll("[data-qrb-color-input]")).forEach(syncColorText);
             }
         }
         schedulePreview();
     });
 
     document.addEventListener("input", function(event){
+        if (event.target.matches("[data-qrb-color-input]")) {
+            syncColorText(event.target);
+        }
+        if (event.target.matches("[data-qrb-color-text]") && !syncColorInput(event.target)) {
+            return;
+        }
         if (event.target.closest(".qrb-studio-form")) {
             setDirty(true);
             schedulePreview();
@@ -132,6 +155,7 @@
     });
 
     document.addEventListener("DOMContentLoaded", function(){
+        Array.prototype.slice.call(document.querySelectorAll("[data-qrb-color-input]")).forEach(syncColorText);
         Array.prototype.slice.call(document.querySelectorAll("[data-qrb-accordion]")).forEach(function(details){
             try {
                 var value = window.localStorage.getItem("qrb-studio-section-" + details.getAttribute("data-qrb-accordion"));

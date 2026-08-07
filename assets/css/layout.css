@@ -94,7 +94,7 @@
     backdrop-filter: blur(12px);
 }
 
-.qrb-mobile-menu {
+.qrb-button.qrb-mobile-menu {
     display: none;
 }
 

@@ -137,7 +137,8 @@ class QRRepository {
             'caption' => $design->caption,
             'caption_font_size' => $design->captionFontSize,
             'caption_font_color' => $design->captionFontColor,
-        ], ['%d','%s','%s','%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d','%s','%s','%s','%d','%s','%d','%d','%d','%s','%s','%s','%s','%s','%d','%s']);
+            'caption_font_family' => $design->captionFontFamily,
+        ], ['%d','%s','%s','%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d','%s','%s','%s','%d','%s','%d','%d','%d','%s','%s','%s','%s','%s','%d','%s','%s']);
         $id = (int) $wpdb->insert_id;
         if ($id > 0) { $this->events->record('qr_created', ['user_id' => get_current_user_id(), 'workspace_id' => $this->workspaceId(), 'object_type' => 'qr', 'object_id' => $id, 'metadata' => ['type' => $type]]); }
         return $id;
@@ -182,8 +183,9 @@ class QRRepository {
             'caption' => $design->caption,
             'caption_font_size' => $design->captionFontSize,
             'caption_font_color' => $design->captionFontColor,
+            'caption_font_family' => $design->captionFontFamily,
         ];
-        $result = $wpdb->update(Schema::qrcodesTable(), $data, ['id' => $id, 'workspace_id' => $this->workspaceId()], ['%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d','%s','%s','%s','%d','%s','%d','%d','%d','%s','%s','%s','%s','%s','%d','%s'], ['%d','%d']);
+        $result = $wpdb->update(Schema::qrcodesTable(), $data, ['id' => $id, 'workspace_id' => $this->workspaceId()], ['%s','%s','%s','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%d','%s','%s','%s','%d','%s','%d','%d','%d','%s','%s','%s','%s','%s','%d','%s','%s'], ['%d','%d']);
         if ($result === false) { return false; }
         $this->recordDestinationChanges($before, $data, $userId);
         $this->events->record('qr_updated', ['user_id' => $userId ?: get_current_user_id(), 'workspace_id' => $this->workspaceId(), 'object_type' => 'qr', 'object_id' => $id, 'metadata' => ['type' => $type]]);

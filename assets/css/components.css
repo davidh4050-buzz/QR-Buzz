@@ -103,6 +103,21 @@
     width: 36px;
 }
 
+.qrb-color-control {
+    align-items: center;
+    display: flex;
+    gap: var(--qrb-space-2);
+}
+
+.qrb-color-control input[type="color"] {
+    flex: 0 0 auto;
+}
+
+.qrb-color-control input[type="text"] {
+    max-width: 112px;
+    text-transform: lowercase;
+}
+
 .qrb-button-primary .qrb-icon,
 .qrb-button-primary span {
     color: #fff;
@@ -476,6 +491,45 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--qrb-space-2);
+}
+
+.qrb-day-picker {
+    border: 1px solid var(--qrb-border);
+    border-radius: var(--qrb-radius-sm);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--qrb-space-2);
+    padding: var(--qrb-space-3);
+}
+
+.qrb-day-picker legend {
+    color: var(--qrb-text);
+    font-size: var(--qrb-font-size-sm);
+    font-weight: var(--qrb-weight-medium);
+    padding: 0 var(--qrb-space-1);
+}
+
+.qrb-day-picker label {
+    align-items: center;
+    display: inline-flex;
+    gap: var(--qrb-space-1);
+}
+
+.qrb-day-picker span {
+    align-items: center;
+    border: 1px solid var(--qrb-border-strong);
+    border-radius: var(--qrb-radius-sm);
+    display: inline-flex;
+    font-weight: var(--qrb-weight-bold);
+    height: 32px;
+    justify-content: center;
+    width: 32px;
+}
+
+.qrb-day-picker input:checked + span {
+    background: var(--qrb-primary);
+    border-color: var(--qrb-primary);
+    color: #fff;
 }
 
 .qrb-smart-rule-list {
