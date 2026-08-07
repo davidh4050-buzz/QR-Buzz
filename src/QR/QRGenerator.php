@@ -146,7 +146,8 @@ class QRGenerator {
         $blockCount = (int) $matrix->getBlockCount();
         $outerSize = (int) $matrix->getOuterSize();
         $margin = (int) $matrix->getMarginLeft();
-        $captionHeight = $design->caption !== '' ? $design->captionFontSize + 24 : 0;
+        $captionFontSize = $this->pngCaptionFontSize($design, $outerSize);
+        $captionHeight = $design->caption !== '' ? $captionFontSize + max(24, (int) round($captionFontSize * 0.8)) : 0;
 
         $image = imagecreatetruecolor($outerSize, $outerSize + $captionHeight);
         imagealphablending($image, false);
@@ -188,7 +189,8 @@ class QRGenerator {
         $blockCount = (int) $matrix->getBlockCount();
         $outerSize = (int) $matrix->getOuterSize();
         $margin = (int) $matrix->getMarginLeft();
-        $captionHeight = $design->caption !== '' ? $design->captionFontSize + 24 : 0;
+        $captionFontSize = $this->pngCaptionFontSize($design, $outerSize);
+        $captionHeight = $design->caption !== '' ? $captionFontSize + max(24, (int) round($captionFontSize * 0.8)) : 0;
         $width = $outerSize;
         $height = $outerSize + $captionHeight;
         $foreground = $this->svgEscape($design->foregroundColor);
@@ -215,7 +217,7 @@ class QRGenerator {
         $svg .= $this->svgLogo($design, $outerSize, $background);
 
         if ($design->caption !== '') {
-            $svg .= '<text x="' . esc_attr((string) ($outerSize / 2)) . '" y="' . esc_attr((string) ($outerSize + $design->captionFontSize + 8)) . '" text-anchor="middle" font-family="' . esc_attr($design->captionFontCss()) . '" font-size="' . esc_attr((string) $design->captionFontSize) . '" fill="' . $this->svgEscape($design->captionFontColor) . '">' . $this->svgEscape($design->caption) . '</text>';
+            $svg .= '<text x="' . esc_attr((string) ($outerSize / 2)) . '" y="' . esc_attr((string) ($outerSize + $captionFontSize + max(8, (int) round($captionFontSize * 0.25)))) . '" text-anchor="middle" font-family="' . esc_attr($design->captionFontCss()) . '" font-size="' . esc_attr((string) $captionFontSize) . '" fill="' . $this->svgEscape($design->captionFontColor) . '">' . $this->svgEscape($design->caption) . '</text>';
         }
 
         return $svg . '</svg>';
@@ -288,12 +290,21 @@ class QRGenerator {
             return;
         }
 
-        $font = max(1, min(5, (int) round($design->captionFontSize / 8)));
-        $caption = $this->truncateForBuiltInFont($design->caption, $font, $outerSize - 20);
-        $textWidth = imagefontwidth($font) * strlen($caption);
-        $x = max(10, (int) round(($outerSize - $textWidth) / 2));
-        $y = $outerSize + 10;
-        imagestring($image, $font, $x, $y, $caption, $this->gdColor($image, $design->captionFontColor));
+        $maxWidth = $outerSize - max(20, (int) round($outerSize * 0.08));
+        $fontSize = $this->fitPngCaptionFontSize($design, $outerSize, $maxWidth);
+        $fontPath = $this->captionFontPath($design->captionFontFamily);
+        $color = $this->gdColor($image, $design->captionFontColor);
+
+        if ($fontPath && function_exists('imagettfbbox')) {
+            $box = imagettfbbox($fontSize, 0, $fontPath, $design->caption);
+            $textWidth = abs((int) $box[2] - (int) $box[0]);
+            $x = max(10, (int) round(($outerSize - $textWidth) / 2));
+            $y = $outerSize + max($fontSize + 8, (int) round($fontSize * 1.25));
+            imagettftext($image, $fontSize, 0, $x, $y, $color, $fontPath, $design->caption);
+            return;
+        }
+
+        $this->drawScaledBuiltInCaption($image, $design, $outerSize, $fontSize, $maxWidth);
     }
 
     private function gdLogoImage(QRDesignSettings $design) {
@@ -382,5 +393,60 @@ class QRGenerator {
             $text = substr($text, 0, -1);
         }
         return strlen($text) < strlen($ellipsis) || imagefontwidth($font) * strlen($text) <= $maxWidth ? $text : substr($text, 0, -strlen($ellipsis)) . $ellipsis;
+    }
+
+    private function pngCaptionFontSize(QRDesignSettings $design, int $outerSize): int {
+        return max($design->captionFontSize, (int) round($outerSize * 0.055));
+    }
+
+    private function fitPngCaptionFontSize(QRDesignSettings $design, int $outerSize, int $maxWidth): int {
+        $fontSize = $this->pngCaptionFontSize($design, $outerSize);
+        $fontPath = $this->captionFontPath($design->captionFontFamily);
+        if (!$fontPath || !function_exists('imagettfbbox')) {
+            return $fontSize;
+        }
+
+        while ($fontSize > 8) {
+            $box = imagettfbbox($fontSize, 0, $fontPath, $design->caption);
+            $textWidth = abs((int) $box[2] - (int) $box[0]);
+            if ($textWidth <= $maxWidth) {
+                break;
+            }
+            $fontSize--;
+        }
+        return $fontSize;
+    }
+
+    private function drawScaledBuiltInCaption($image, QRDesignSettings $design, int $outerSize, int $targetFontSize, int $maxWidth): void {
+        $font = 5;
+        $caption = $this->truncateForBuiltInFont($design->caption, $font, $maxWidth);
+        $sourceWidth = max(1, imagefontwidth($font) * strlen($caption));
+        $sourceHeight = imagefontheight($font);
+        $scale = max(1, min($maxWidth / $sourceWidth, $targetFontSize / $sourceHeight));
+        $targetWidth = (int) round($sourceWidth * $scale);
+        $targetHeight = (int) round($sourceHeight * $scale);
+        $textImage = imagecreatetruecolor($sourceWidth, $sourceHeight);
+        imagealphablending($textImage, false);
+        imagesavealpha($textImage, true);
+        imagefilledrectangle($textImage, 0, 0, $sourceWidth, $sourceHeight, $this->gdTransparentColor($textImage));
+        imagealphablending($textImage, true);
+        imagestring($textImage, $font, 0, 0, $caption, $this->gdColor($textImage, $design->captionFontColor));
+        imagecopyresampled($image, $textImage, (int) round(($outerSize - $targetWidth) / 2), $outerSize + max(8, (int) round($targetFontSize * 0.3)), 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
+        imagedestroy($textImage);
+    }
+
+    private function captionFontPath(string $family): ?string {
+        $candidates = match ($family) {
+            'georgia' => ['/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf', '/usr/share/fonts/truetype/liberation2/LiberationSerif-Regular.ttf'],
+            'verdana', 'trebuchet', 'arial' => ['/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf'],
+            'courier' => ['/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf', '/usr/share/fonts/truetype/liberation2/LiberationMono-Regular.ttf'],
+            default => ['/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'],
+        };
+        foreach ($candidates as $path) {
+            if (is_readable($path)) {
+                return $path;
+            }
+        }
+        return null;
     }
 }
