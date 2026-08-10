@@ -1,0 +1,5 @@
+.qrb-public {
+    margin: var(--qrb-space-7) auto;
+    max-width: 760px;
+    padding: var(--qrb-space-5);
+}
