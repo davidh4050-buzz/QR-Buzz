@@ -30,7 +30,7 @@
             return;
         }
 
-        var dismiss = event.target.closest("[data-qrb-dismiss], [data-qrb-toast-close], .qrb-toast-close");
+        var dismiss = event.target.closest("[data-qrb-dismiss], [data-qrb-toast-close], .qrb-toast-close, .notice-dismiss");
         if (dismiss) {
             event.preventDefault();
             var target = dismiss.closest("[data-qrb-dismissible]");
@@ -41,8 +41,18 @@
                 return;
             }
             target = dismiss.closest("[data-qrb-toast], .qrb-toast, .qrb-tip, .qrb-alert");
-            if (target) { target.hidden = true; }
+            if (target) { target.remove(); }
+            if (window.history && window.history.replaceState) {
+                var url = new URL(window.location.href);
+                ["saved", "created", "welcome", "deleted"].forEach(function(key){ url.searchParams.delete(key); });
+                window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+            }
             return;
+        }
+
+        var confirmAction = event.target.closest("[data-confirm]");
+        if (confirmAction && !window.confirm(confirmAction.getAttribute("data-confirm"))) {
+            event.preventDefault();
         }
 
         var viewButton = event.target.closest("[data-qrb-view]");

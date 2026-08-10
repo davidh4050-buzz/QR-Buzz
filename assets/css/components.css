@@ -25,10 +25,10 @@
 
 .qrb-button {
     align-items: center;
-    background: var(--qrb-surface);
-    border: 1px solid var(--qrb-border-strong);
+    background: var(--qrb-primary);
+    border: 1px solid var(--qrb-primary);
     border-radius: var(--qrb-radius-sm);
-    color: var(--qrb-text);
+    color: #fff;
     cursor: pointer;
     display: inline-flex;
     gap: var(--qrb-space-2);
@@ -39,8 +39,9 @@
 }
 
 .qrb-button:hover {
-    border-color: var(--qrb-primary);
-    color: var(--qrb-primary);
+    background: var(--qrb-primary-hover);
+    border-color: var(--qrb-primary-hover);
+    color: #fff;
 }
 
 .qrb-button:focus-visible,
@@ -72,26 +73,27 @@
 }
 
 .qrb-button-quiet {
-    background: transparent;
-    border-color: transparent;
-    color: var(--qrb-muted);
+    background: var(--qrb-primary);
+    border-color: var(--qrb-primary);
+    color: #fff;
 }
 
 .qrb-button-quiet:hover,
 .qrb-button-quiet:focus-visible {
-    background: #f1f5f9;
-    color: var(--qrb-text);
+    background: var(--qrb-primary-hover);
+    color: #fff;
 }
 
 .qrb-button-danger {
-    border-color: #fecaca;
-    color: var(--qrb-danger);
+    background: var(--qrb-primary);
+    border-color: var(--qrb-primary);
+    color: #fff;
 }
 
 .qrb-button-danger:hover {
-    background: #fef2f2;
-    border-color: var(--qrb-danger);
-    color: var(--qrb-danger);
+    background: var(--qrb-primary-hover);
+    border-color: var(--qrb-primary-hover);
+    color: #fff;
 }
 
 .qrb-icon-button {

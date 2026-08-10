@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.9.8
+- Applied the further UI refinements: `#d0d7dc` background, transparent sidebar, dark navigation text, full-width header, top-left logo, and `#217a9b` buttons with white text
+- Fixed notice dismissal and stale notice query parameters
+- Added confirmed, nonce-protected QR deletion from QR Library cards
 - Added shared motion, easing, button, focus, tooltip, loading, QR block motif, usage bar, and dismissible tip patterns for the hosted workspace
 - Refined the workspace dashboard welcome area, quick actions, activity timeline, metrics, usage presentation, and first-use guidance
 - Improved QR Library card interactions with restrained hover/focus lift, QR artwork framing, status accent strips, health indicators, and clearer primary/secondary actions

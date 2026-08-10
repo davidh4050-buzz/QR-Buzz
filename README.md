@@ -33,6 +33,8 @@ If WordPress shows "The link you followed has expired" while uploading, the serv
 
 ## Features in v0.9.8
 
+- Further UI refinements with a `#d0d7dc` background, transparent sidebar, dark navigation, full-width header, top-left logo, and consistent `#217a9b` buttons
+- Reliable dismissible notices and confirmed, workspace-scoped QR deletion from Library cards
 - Shared motion, easing, focus, button, tooltip, loading, usage bar, and QR block motif patterns across the hosted workspace
 - Refined Dashboard welcome area, quick-action cards, metrics, activity timeline, usage presentation, and first-use guidance
 - Improved QR Library cards with subtle hover/focus lift, QR artwork framing, status accent strips, deterministic QR health, and clearer primary/secondary actions
