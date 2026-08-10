@@ -10,11 +10,11 @@
     }
 
     .qrb-sidebar {
-        height: 100vh;
+        height: calc(100vh - var(--qrb-topbar-height));
         left: 0;
         max-width: min(86vw, 320px);
         position: fixed;
-        top: 0;
+        top: var(--qrb-topbar-height);
         transform: translateX(-105%);
         transition: transform var(--qrb-transition);
         width: var(--qrb-sidebar-width);
@@ -57,6 +57,10 @@
 
     .qrb-topbar-actions {
         margin-left: 0;
+    }
+
+    .qrb-topbar .qrb-brand {
+        min-width: 0;
     }
 
     .qrb-main {

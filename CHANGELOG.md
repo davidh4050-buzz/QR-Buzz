@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.8
+- Updated the customer application background to `#d0d7dc` and made the sidebar transparent with readable dark-grey navigation text
+- Moved the QR Buzz logo into a full-width application header and expanded the content area
+- Standardised customer application buttons on `#217a9b` with white text, including the New QR flow
+- Fixed hosted application notice dismissal and removal of stale notice query parameters
+- Added nonce-protected QR Library card deletion with a trash icon and confirmation dialog
+
 ## 0.9.7
 - Smart Destinations Management Update: added dedicated customer rule management pages with add, edit, delete, duplicate, activate/deactivate, and accessible priority controls
 - Added production-resolver destination simulation for current or future site-local times without recording scans or analytics

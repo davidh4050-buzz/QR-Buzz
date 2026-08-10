@@ -18,6 +18,19 @@
     }
 
     doc.addEventListener("click", function(event){
+        var dismiss = event.target.closest("[data-qrb-dismiss], .notice-dismiss");
+        if (dismiss) {
+            event.preventDefault();
+            var notice = dismiss.closest(".qrb-toast, .notice");
+            if (notice) { notice.remove(); }
+            try {
+                var url = new URL(window.location.href);
+                ["saved", "created", "welcome", "deleted", "rule_deleted", "rule_toggled", "reordered", "duplicated"].forEach(function(key){ url.searchParams.delete(key); });
+                window.history.replaceState({}, "", url.toString());
+            } catch (e) {}
+            return;
+        }
+
         var drawerButton = event.target.closest("[data-qrb-drawer-toggle]");
         if (drawerButton) {
             event.preventDefault();

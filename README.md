@@ -2,7 +2,7 @@
 
 QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, campaigns, smart destinations, hosted accounts, subscriptions, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
 
-v0.9.7 is the Platform Administration, Diagnostics & Operations release. It adds a dedicated `/platform-admin/*` environment for authorised QR Buzz platform administrators to inspect users, workspaces, subscriptions, QR assets, campaigns, product usage, health checks, webhooks, errors, audit events, feature flags, and support diagnostics.
+v0.9.8 is a focused customer and platform UI update. It refreshes the application shell, standardises button styling, fixes dismissible notices, and adds secure QR deletion from Library cards while retaining the v0.9.7 platform administration and Smart Destinations foundation.
 
 ## Dynamic vs Static QR Codes
 
@@ -30,6 +30,14 @@ Do not install GitHub's automatic source-code ZIP from the green Code button. Th
 If you download a GitHub Actions artifact, unzip that download first. The artifact contains the actual WordPress plugin file named `qr-buzz.zip`; upload that inner ZIP to WordPress.
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
+
+## Features in v0.9.8
+
+- Updated `#d0d7dc` application background with a transparent sidebar and dark-grey navigation text
+- Full-width header with the QR Buzz logo positioned at the top left
+- Consistent `#217a9b` buttons with white text throughout the application and New QR flow
+- Working dismiss controls for hosted notices
+- QR Library card trash action with confirmation and nonce-protected workspace-scoped deletion
 
 ## Features in v0.9.7
 
@@ -132,7 +140,7 @@ On activation, QR Buzz grants `qrbuzz_manage_platform` to WordPress administrato
 
 ## Stripe Test Mode
 
-Stripe is test-mode only in v0.9.7.
+Stripe remains test-mode only in v0.9.8.
 
 Configure with constants or environment variables:
 
@@ -242,7 +250,7 @@ composer fix
 ## Release Process
 
 1. Merge the release branch into `main`.
-2. Tag the release, for example `v0.9.7`.
+2. Tag the release, for example `v0.9.8`.
 3. Push the tag to GitHub.
 4. The release workflow installs production dependencies and uploads `qr-buzz.zip` as a build artifact.
 
