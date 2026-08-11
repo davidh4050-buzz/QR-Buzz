@@ -1,8 +1,8 @@
 # QR Buzz
 
-QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, campaigns, smart destinations, hosted accounts, subscriptions, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
+QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, user asset libraries, campaigns, smart destinations, hosted accounts, subscriptions, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
 
-v0.9.8 is the Product Delight & Elegant Interaction release. It refines the hosted workspace with calmer visual hierarchy, QR Library card interactions, QR Studio progressive disclosure, contextual tips, status accents, deterministic QR health, clearer loading and success states, and reduced-motion-aware micro-interactions.
+v0.9.9 is the User Asset Library release. It adds a dedicated QR Buzz Asset Library for reusable logo artwork, moves QR Studio logo selection away from the WordPress Media Library, and preserves legacy logo attachments for existing QR codes.
 
 ## Dynamic vs Static QR Codes
 
@@ -30,6 +30,18 @@ Do not install GitHub's automatic source-code ZIP from the green Code button. Th
 If you download a GitHub Actions artifact, unzip that download first. The artifact contains the actual WordPress plugin file named `qr-buzz.zip`; upload that inner ZIP to WordPress.
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
+
+## Features in v0.9.9
+
+- Added a dedicated hosted Asset Library at `/app/assets`
+- Added QR Buzz-controlled upload storage under WordPress uploads for workspace/user logo assets
+- Added the `qrbuzz_assets` table for asset ownership, filenames, MIME type, dimensions, file size, storage path, and timestamps
+- Added server-side validation for PNG, JPG, JPEG, and WebP uploads with 5 MB and 6000px dimension limits
+- Added asset thumbnail grid, empty state, refresh, rename, and guarded delete actions
+- Added QR Studio Asset Library picker with upload, choose, remove, and live-preview refresh support
+- Added `logo_asset_id` to QR codes while preserving legacy `logo_attachment_id` support
+- Kept existing QR codes with Media Library logos rendering through the legacy fallback path
+- Updated plugin metadata and schema marker for v0.9.9
 
 ## Features in v0.9.8
 
@@ -142,7 +154,7 @@ On activation, QR Buzz grants `qrbuzz_manage_platform` to WordPress administrato
 
 ## Stripe Test Mode
 
-Stripe is test-mode only in v0.9.8.
+Stripe is test-mode only in v0.9.9.
 
 Configure with constants or environment variables:
 
@@ -248,7 +260,7 @@ composer fix
 ## Release Process
 
 1. Merge the release branch into `main`.
-2. Tag the release, for example `v0.9.8`.
+2. Tag the release, for example `v0.9.9`.
 3. Push the tag to GitHub.
 4. The release workflow installs production dependencies and uploads `qr-buzz.zip` as a build artifact.
 

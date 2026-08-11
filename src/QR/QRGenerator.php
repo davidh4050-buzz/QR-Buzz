@@ -14,9 +14,16 @@ use Endroid\QrCode\Logo\LogoInterface;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 use Endroid\QrCode\Writer\SvgWriter;
+use QRBuzz\Assets\AssetStorage;
 use QRBuzz\QR\Design\QRDesignSettings;
 
 class QRGenerator {
+
+    private AssetStorage $assetStorage;
+
+    public function __construct(?AssetStorage $assetStorage = null) {
+        $this->assetStorage = $assetStorage ?: new AssetStorage();
+    }
 
     public function generate(string $data, int $size = 300, ?QRDesignSettings $design = null): string {
         return $this->generatePngDataUri($data, $size, $design);
@@ -111,11 +118,11 @@ class QRGenerator {
     }
 
     private function logo(QRDesignSettings $design, int $size, string $format): ?LogoInterface {
-        if (!$design->hasLogo() || !function_exists('get_attached_file')) {
+        if (!$design->hasLogo()) {
             return null;
         }
 
-        $path = get_attached_file($design->logoAttachmentId);
+        $path = $this->logoPath($design);
         if (!$path || !file_exists($path)) {
             return null;
         }
@@ -308,11 +315,11 @@ class QRGenerator {
     }
 
     private function gdLogoImage(QRDesignSettings $design) {
-        if (!$design->hasLogo() || !function_exists('get_attached_file')) {
+        if (!$design->hasLogo()) {
             return null;
         }
 
-        $path = get_attached_file($design->logoAttachmentId);
+        $path = $this->logoPath($design);
         if (!$path || !file_exists($path)) {
             return null;
         }
@@ -328,11 +335,11 @@ class QRGenerator {
     }
 
     private function svgLogo(QRDesignSettings $design, int $outerSize, string $background): string {
-        if (!$design->hasLogo() || !function_exists('get_attached_file')) {
+        if (!$design->hasLogo()) {
             return '';
         }
 
-        $path = get_attached_file($design->logoAttachmentId);
+        $path = $this->logoPath($design);
         if (!$path || !file_exists($path)) {
             return '';
         }
@@ -349,6 +356,22 @@ class QRGenerator {
         $padding = max(4, (int) round($logoWidth * 0.12));
         $data = base64_encode((string) file_get_contents($path));
         return '<rect x="' . esc_attr((string) ($x - $padding)) . '" y="' . esc_attr((string) ($y - $padding)) . '" width="' . esc_attr((string) ($logoWidth + ($padding * 2))) . '" height="' . esc_attr((string) ($logoWidth + ($padding * 2))) . '" fill="' . $background . '"/><image href="data:' . esc_attr($mime) . ';base64,' . esc_attr($data) . '" x="' . esc_attr((string) $x) . '" y="' . esc_attr((string) $y) . '" width="' . esc_attr((string) $logoWidth) . '" height="' . esc_attr((string) $logoWidth) . '" preserveAspectRatio="xMidYMid meet"/>';
+    }
+
+    private function logoPath(QRDesignSettings $design): ?string {
+        if ($design->logoAssetId > 0) {
+            $path = $this->assetStorage->pathForAssetId($design->logoAssetId);
+            if ($path) {
+                return $path;
+            }
+        }
+
+        if ($design->logoAttachmentId > 0 && function_exists('get_attached_file')) {
+            $path = get_attached_file($design->logoAttachmentId);
+            return $path && is_readable($path) ? (string) $path : null;
+        }
+
+        return null;
     }
 
     private function svgFinder(float $x, float $y, float $blockSize, QRDesignSettings $design, string $foreground, string $background): string {

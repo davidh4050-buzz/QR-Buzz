@@ -1,0 +1,119 @@
+.qrb-asset-upload {
+    align-items: center;
+    background: linear-gradient(135deg, #ffffff 0%, #eefcf8 72%, #fff7ed 100%);
+    display: grid;
+    gap: var(--qrb-space-4);
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+}
+
+.qrb-dropzone {
+    align-items: center;
+    background: #fff;
+    border: 1px dashed var(--qrb-border-strong);
+    border-radius: var(--qrb-radius);
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    min-height: 118px;
+    padding: var(--qrb-space-5);
+    text-align: center;
+}
+
+.qrb-dropzone input {
+    max-width: 100%;
+}
+
+.qrb-dropzone span {
+    color: var(--qrb-muted);
+    font-weight: var(--qrb-weight-medium);
+}
+
+.qrb-dropzone.is-dragging {
+    border-color: var(--qrb-primary);
+    box-shadow: 0 0 0 3px rgba(33, 122, 155, 0.16);
+}
+
+.qrb-asset-grid,
+.qrb-asset-picker-grid {
+    display: grid;
+    gap: var(--qrb-space-4);
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.qrb-asset-card,
+.qrb-asset-picker-card {
+    background: #fff;
+    border: 1px solid var(--qrb-border);
+    border-radius: var(--qrb-radius);
+    display: grid;
+    gap: var(--qrb-space-3);
+    padding: var(--qrb-space-3);
+}
+
+.qrb-asset-card h3,
+.qrb-asset-picker-card h3 {
+    margin: 0;
+}
+
+.qrb-asset-card p,
+.qrb-asset-picker-card p {
+    color: var(--qrb-muted);
+    font-size: var(--qrb-font-size-sm);
+    margin: var(--qrb-space-1) 0 0;
+}
+
+.qrb-asset-thumb {
+    align-items: center;
+    background: #f1f5f9;
+    border-radius: var(--qrb-radius-sm);
+    display: flex;
+    justify-content: center;
+    min-height: 150px;
+    overflow: hidden;
+}
+
+.qrb-asset-thumb img {
+    display: block;
+    max-height: 150px;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.qrb-asset-actions {
+    display: flex;
+    gap: var(--qrb-space-2);
+    justify-content: flex-end;
+}
+
+.qrb-asset-modal {
+    background: rgba(15, 23, 42, 0.58);
+    display: grid;
+    inset: 0;
+    padding: var(--qrb-space-5);
+    place-items: center;
+    position: fixed;
+    z-index: 120;
+}
+
+.qrb-asset-modal[hidden] {
+    display: none;
+}
+
+.qrb-asset-modal-panel {
+    background: var(--qrb-surface);
+    border-radius: var(--qrb-radius);
+    box-shadow: var(--qrb-shadow-card);
+    display: grid;
+    gap: var(--qrb-space-4);
+    max-height: min(86vh, 860px);
+    max-width: 900px;
+    overflow: auto;
+    padding: var(--qrb-space-5);
+    width: min(92vw, 900px);
+}
+
+@media (max-width: 720px) {
+    .qrb-asset-upload {
+        grid-template-columns: 1fr;
+    }
+}

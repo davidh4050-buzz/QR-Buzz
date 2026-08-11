@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.9
+- Added a dedicated hosted Asset Library at `/app/assets`
+- Added QR Buzz-controlled upload storage for per-workspace, per-user logo assets under WordPress uploads
+- Added the `qrbuzz_assets` table and `logo_asset_id` QR code column with upgrade-safe schema handling
+- Added PNG, JPG, JPEG, and WebP upload validation with 5 MB and 6000px dimension limits
+- Added Asset Library thumbnail grid, empty state, refresh, rename, and guarded delete actions
+- Added QR Studio logo picker and upload workflow backed by the Asset Library
+- Preserved existing `logo_attachment_id` Media Library logos as a legacy rendering fallback
+- Updated QR previews, PNG downloads, and SVG downloads to resolve QR Buzz asset logos
+- Updated documentation and plugin metadata for v0.9.9
+
 ## 0.9.8
 - Applied the further UI refinements: `#d0d7dc` background, transparent sidebar, dark navigation text, full-width header, top-left logo, and `#217a9b` buttons with white text
 - Fixed notice dismissal and stale notice query parameters

@@ -10,6 +10,7 @@ use QRBuzz\Admin\PlanGuard;
 use QRBuzz\Admin\PlatformPage;
 use QRBuzz\Admin\QRPreviewController;
 use QRBuzz\App\HostedAppController;
+use QRBuzz\Assets\AssetAjaxController;
 use QRBuzz\Billing\WebhookController;
 use QRBuzz\Core\Requirements;
 use QRBuzz\Database\Installer;
@@ -41,6 +42,7 @@ class Plugin {
             (new PlanGuard())->init();
             (new DownloadController($this->repository))->init();
             (new ExportController($this->repository))->init();
+            (new AssetAjaxController())->init();
             (new QRPreviewController($this->repository))->init();
             (new AdminPage($this->repository))->init();
             (new CampaignsPage())->init();

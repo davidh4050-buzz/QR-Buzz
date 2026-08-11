@@ -134,7 +134,7 @@ class PlatformAdminRepository {
         $qrTypes = $wpdb->get_results('SELECT type AS label, COUNT(*) AS count FROM ' . Schema::qrcodesTable() . ' GROUP BY type ORDER BY count DESC') ?: [];
         $dotStyles = $wpdb->get_results('SELECT dot_style AS label, COUNT(*) AS count FROM ' . Schema::qrcodesTable() . ' GROUP BY dot_style ORDER BY count DESC') ?: [];
         $finderStyles = $wpdb->get_results('SELECT finder_style AS label, COUNT(*) AS count FROM ' . Schema::qrcodesTable() . ' GROUP BY finder_style ORDER BY count DESC') ?: [];
-        return ['qr_types' => $qrTypes, 'dot_styles' => $dotStyles, 'finder_styles' => $finderStyles, 'logos' => (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . Schema::qrcodesTable() . ' WHERE logo_attachment_id IS NOT NULL AND logo_attachment_id > 0'), 'smart_destinations' => (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . Schema::destinationRulesTable()), 'campaigns' => (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . Schema::campaignsTable())];
+        return ['qr_types' => $qrTypes, 'dot_styles' => $dotStyles, 'finder_styles' => $finderStyles, 'logos' => (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . Schema::qrcodesTable() . ' WHERE (logo_attachment_id IS NOT NULL AND logo_attachment_id > 0) OR (logo_asset_id IS NOT NULL AND logo_asset_id > 0)'), 'smart_destinations' => (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . Schema::destinationRulesTable()), 'campaigns' => (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . Schema::campaignsTable())];
     }
 
     public function recentScansForQr(int $qrId, int $limit = 10): array {

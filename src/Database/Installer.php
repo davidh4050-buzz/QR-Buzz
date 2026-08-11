@@ -2,7 +2,7 @@
 namespace QRBuzz\Database;
 
 class Installer {
-    public const DESIGN_SCHEMA_VERSION = '2026-08-07-caption-font-brand-kit';
+    public const DESIGN_SCHEMA_VERSION = '2026-08-11-user-assets';
 
     public static function activate(): void {
         self::createTables();
@@ -22,6 +22,7 @@ class Installer {
         $historyTable = Schema::destinationHistoryTable();
         $campaignsTable = Schema::campaignsTable();
         $rulesTable = Schema::destinationRulesTable();
+        $assetsTable = Schema::assetsTable();
         $membersTable = Schema::membershipsTable();
         $profilesTable = Schema::profilesTable();
         $subscriptionsTable = Schema::subscriptionsTable();
@@ -82,6 +83,7 @@ class Installer {
             error_correction varchar(1) NOT NULL DEFAULT 'H',
             margin int(11) NOT NULL DEFAULT 12,
             logo_attachment_id bigint(20) unsigned NULL,
+            logo_asset_id bigint(20) unsigned NULL,
             logo_size int(11) NOT NULL DEFAULT 20,
             dot_style varchar(20) NOT NULL DEFAULT 'square',
             finder_style varchar(20) NOT NULL DEFAULT 'square',
@@ -100,7 +102,29 @@ class Installer {
             KEY type (type),
             KEY is_trackable (is_trackable),
             KEY campaign_id (campaign_id),
+            KEY logo_asset_id (logo_asset_id),
             KEY theme (theme)
+        ) {$charsetCollate};");
+
+        dbDelta("CREATE TABLE {$assetsTable} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            workspace_id bigint(20) unsigned NULL,
+            user_id bigint(20) unsigned NOT NULL,
+            display_name varchar(191) NOT NULL,
+            original_filename varchar(191) NOT NULL,
+            stored_filename varchar(191) NOT NULL,
+            mime_type varchar(96) NOT NULL,
+            file_size bigint(20) unsigned NOT NULL DEFAULT 0,
+            width int(11) NOT NULL DEFAULT 0,
+            height int(11) NOT NULL DEFAULT 0,
+            storage_path text NOT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            KEY workspace_id (workspace_id),
+            KEY user_id (user_id),
+            KEY mime_type (mime_type),
+            KEY created_at (created_at)
         ) {$charsetCollate};");
 
         dbDelta("CREATE TABLE {$scansTable} (

@@ -44,7 +44,7 @@ class QRPreviewController {
         $designFallback = $existing ? QRDesignSettings::fromQrCode($existing) : $this->brandKit->designDefaults();
         $design = QRDesignSettings::fromPost($_POST, $designFallback);
         if (!$this->entitlements->allows('advanced_branding')) { $design = QRDesignSettings::defaults(); }
-        if (!$this->entitlements->allows('logo_embedding')) { $design->logoAttachmentId = 0; }
+        if (!$this->entitlements->allows('logo_embedding')) { $design->logoAttachmentId = 0; $design->logoAssetId = 0; }
         $payload = $existing && $type === 'dynamic_url' && $existing->type === 'dynamic_url' ? $this->payloads->payloadForQrCode($existing) : $this->previewPayload($type);
 
         if ($payload === '') {

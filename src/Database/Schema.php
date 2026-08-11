@@ -8,6 +8,7 @@ class Schema {
     public static function destinationHistoryTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_destination_history'; }
     public static function campaignsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_campaigns'; }
     public static function destinationRulesTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_destination_rules'; }
+    public static function assetsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_assets'; }
     public static function workspacesTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_workspaces'; }
     public static function membershipsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_workspace_members'; }
     public static function profilesTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_user_profiles'; }

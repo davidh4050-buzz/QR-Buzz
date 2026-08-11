@@ -32,6 +32,7 @@ class QRCode {
     public string $errorCorrection;
     public int $margin;
     public int $logoAttachmentId;
+    public int $logoAssetId;
     public int $logoSize;
     public string $dotStyle;
     public string $finderStyle;
@@ -73,6 +74,7 @@ class QRCode {
         $qrCode->errorCorrection = isset($row->error_correction) && (string) $row->error_correction !== '' ? (string) $row->error_correction : 'H';
         $qrCode->margin = isset($row->margin) ? (int) $row->margin : 12;
         $qrCode->logoAttachmentId = isset($row->logo_attachment_id) ? (int) $row->logo_attachment_id : 0;
+        $qrCode->logoAssetId = isset($row->logo_asset_id) ? (int) $row->logo_asset_id : 0;
         $qrCode->logoSize = isset($row->logo_size) ? (int) $row->logo_size : 20;
         $qrCode->dotStyle = isset($row->dot_style) && (string) $row->dot_style !== '' ? (string) $row->dot_style : 'square';
         $qrCode->finderStyle = isset($row->finder_style) && (string) $row->finder_style !== '' ? (string) $row->finder_style : 'square';

@@ -12,6 +12,7 @@ class QRDesignSettings {
     public string $errorCorrection;
     public int $margin;
     public int $logoAttachmentId;
+    public int $logoAssetId;
     public int $logoSize;
     public string $dotStyle;
     public string $finderStyle;
@@ -30,6 +31,7 @@ class QRDesignSettings {
         $this->errorCorrection = self::sanitizeErrorCorrection((string) ($settings['error_correction'] ?? 'H'));
         $this->margin = self::sanitizeMargin($settings['margin'] ?? 12);
         $this->logoAttachmentId = absint($settings['logo_attachment_id'] ?? 0);
+        $this->logoAssetId = absint($settings['logo_asset_id'] ?? 0);
         $this->logoSize = self::sanitizeLogoSize($settings['logo_size'] ?? 20);
         $this->dotStyle = self::sanitizeDotStyle((string) ($settings['dot_style'] ?? 'square'));
         $this->finderStyle = self::sanitizeFinderStyle((string) ($settings['finder_style'] ?? 'square'));
@@ -54,6 +56,7 @@ class QRDesignSettings {
             'error_correction' => $qrCode->errorCorrection,
             'margin' => $qrCode->margin,
             'logo_attachment_id' => $qrCode->logoAttachmentId,
+            'logo_asset_id' => $qrCode->logoAssetId,
             'logo_size' => $qrCode->logoSize,
             'dot_style' => $qrCode->dotStyle,
             'finder_style' => $qrCode->finderStyle,
@@ -77,6 +80,7 @@ class QRDesignSettings {
             'error_correction' => isset($post['error_correction']) ? sanitize_text_field(wp_unslash($post['error_correction'])) : $fallback->errorCorrection,
             'margin' => isset($post['margin']) ? absint($post['margin']) : $fallback->margin,
             'logo_attachment_id' => isset($post['logo_attachment_id']) ? absint($post['logo_attachment_id']) : $fallback->logoAttachmentId,
+            'logo_asset_id' => isset($post['logo_asset_id']) ? absint($post['logo_asset_id']) : $fallback->logoAssetId,
             'logo_size' => isset($post['logo_size']) ? absint($post['logo_size']) : $fallback->logoSize,
             'dot_style' => isset($post['dot_style']) ? sanitize_key(wp_unslash($post['dot_style'])) : $fallback->dotStyle,
             'finder_style' => isset($post['finder_style']) ? sanitize_key(wp_unslash($post['finder_style'])) : $fallback->finderStyle,
@@ -98,6 +102,7 @@ class QRDesignSettings {
             'error_correction' => $this->errorCorrection,
             'margin' => $this->margin,
             'logo_attachment_id' => $this->logoAttachmentId,
+            'logo_asset_id' => $this->logoAssetId,
             'logo_size' => $this->logoSize,
             'dot_style' => $this->dotStyle,
             'finder_style' => $this->finderStyle,
@@ -111,7 +116,7 @@ class QRDesignSettings {
     }
 
     public function hasLogo(): bool {
-        return $this->logoAttachmentId > 0;
+        return $this->logoAssetId > 0 || $this->logoAttachmentId > 0;
     }
 
     public function usesAdvancedRendering(): bool {

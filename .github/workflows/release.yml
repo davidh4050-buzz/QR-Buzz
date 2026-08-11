@@ -17,6 +17,7 @@ on:
       - v0.9.6-workspace-ui
       - v0.9.7-platform-admin
       - v0.9.8-ui-ux-polish
+      - v0.9.9-user-assets
     tags:
       - 'v*'
 
