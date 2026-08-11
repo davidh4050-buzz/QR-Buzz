@@ -38,9 +38,15 @@
     transition: background var(--qrb-transition), border-color var(--qrb-transition), color var(--qrb-transition), transform var(--qrb-transition-fast);
 }
 
-.qrb-button:hover {
+.qrb-button:hover,
+.qrb-button:focus,
+.qrb-button:active {
     background: var(--qrb-primary-hover);
     border-color: var(--qrb-primary-hover);
+    color: #fff;
+}
+
+.qrb-button:visited {
     color: #fff;
 }
 
@@ -118,8 +124,9 @@
 }
 
 .qrb-download-menu[open] summary {
-    border-color: var(--qrb-primary);
-    color: var(--qrb-primary);
+    background: var(--qrb-primary-hover);
+    border-color: var(--qrb-primary-hover);
+    color: #fff;
 }
 
 .qrb-download-menu > div {
@@ -145,8 +152,8 @@
 
 .qrb-download-menu a:hover,
 .qrb-download-menu a:focus {
-    background: #f1f5f9;
-    color: var(--qrb-primary);
+    background: var(--qrb-primary);
+    color: #fff;
 }
 
 .qrb-color-control {
@@ -181,7 +188,9 @@
 }
 
 .qrb-button-primary .qrb-icon,
-.qrb-button-primary span {
+.qrb-button-primary span,
+.qrb-button .qrb-icon,
+.qrb-button span {
     color: #fff;
 }
 

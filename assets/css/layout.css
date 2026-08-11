@@ -43,7 +43,7 @@
 }
 
 .qrb-brand-logo {
-    background: rgba(255, 255, 255, 0.96);
+    background: #fff;
     border-radius: var(--qrb-radius-sm);
     padding: 0.45rem;
 }
@@ -99,8 +99,8 @@
 
 .qrb-topbar {
     align-items: center;
-    background: rgba(255, 255, 255, 0.92);
-    border-bottom: 1px solid var(--qrb-border);
+    background: #323232;
+    border-bottom: 1px solid #323232;
     display: flex;
     grid-column: 1 / -1;
     grid-row: 1;
@@ -110,7 +110,6 @@
     position: sticky;
     top: 0;
     z-index: 20;
-    backdrop-filter: blur(12px);
 }
 
 .qrb-topbar .qrb-brand {
@@ -139,12 +138,13 @@
 }
 
 .qrb-workspace span {
-    color: var(--qrb-muted);
+    color: rgba(255, 255, 255, 0.76);
     display: block;
     font-size: var(--qrb-font-size-xs);
 }
 
 .qrb-workspace strong {
+    color: #fff;
     display: block;
     font-size: var(--qrb-font-size-sm);
     overflow: hidden;

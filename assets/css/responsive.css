@@ -61,7 +61,7 @@
 
     .qrb-topbar-actions {
         gap: var(--qrb-space-3);
-        margin-left: 0;
+        margin-left: auto;
         padding-bottom: var(--qrb-space-2);
     }
 

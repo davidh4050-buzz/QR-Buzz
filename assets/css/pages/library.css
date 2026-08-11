@@ -16,10 +16,6 @@
 
 .qrb-qr-card-delete {
     margin: 0;
-    position: absolute;
-    right: var(--qrb-space-3);
-    top: var(--qrb-space-3);
-    z-index: 2;
 }
 
 .qrb-qr-card-delete .qrb-icon-button {
