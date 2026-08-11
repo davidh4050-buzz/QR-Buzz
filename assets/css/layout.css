@@ -51,6 +51,8 @@
 .qrb-brand-logo img {
     display: block;
     height: auto;
+    max-height: 86px;
+    object-fit: contain;
     width: 100%;
 }
 

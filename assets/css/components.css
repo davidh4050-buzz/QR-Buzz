@@ -38,15 +38,38 @@
     transition: background var(--qrb-transition), border-color var(--qrb-transition), color var(--qrb-transition), transform var(--qrb-transition-fast);
 }
 
+.qrb-button,
+.qrb-button:link,
+.qrb-button:visited,
+.qrb-button:hover,
+.qrb-button:focus,
+.qrb-button:focus-visible,
+.qrb-button:active,
+.qrb-button-primary,
+.qrb-button-primary:link,
+.qrb-button-primary:visited,
+.qrb-button-primary:hover,
+.qrb-button-primary:focus,
+.qrb-button-primary:focus-visible,
+.qrb-button-primary:active {
+    color: #fff !important;
+}
+
+.qrb-button *,
+.qrb-button:link *,
+.qrb-button:visited *,
+.qrb-button:hover *,
+.qrb-button:focus *,
+.qrb-button:focus-visible *,
+.qrb-button:active * {
+    color: #fff !important;
+}
+
 .qrb-button:hover,
 .qrb-button:focus,
 .qrb-button:active {
     background: var(--qrb-primary-hover);
     border-color: var(--qrb-primary-hover);
-    color: #fff;
-}
-
-.qrb-button:visited {
     color: #fff;
 }
 
@@ -71,10 +94,6 @@
 .qrb-button-primary:hover {
     background: var(--qrb-primary-hover);
     border-color: var(--qrb-primary-hover);
-    color: #fff;
-}
-
-.qrb-button-primary:visited {
     color: #fff;
 }
 
@@ -191,7 +210,7 @@
 .qrb-button-primary span,
 .qrb-button .qrb-icon,
 .qrb-button span {
-    color: #fff;
+    color: #fff !important;
 }
 
 .qrb-button[disabled],
@@ -249,7 +268,7 @@
 }
 
 .qrb-empty {
-    background: linear-gradient(180deg, #fff, #f8fafc);
+    background: linear-gradient(135deg, #ffffff 0%, #eefcf8 72%, #fff7ed 100%);
     border: 1px dashed var(--qrb-border-strong);
     border-radius: var(--qrb-radius);
     overflow: hidden;
@@ -296,6 +315,12 @@
     display: grid;
     gap: var(--qrb-space-4);
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.qrb-type-card,
+.qrb-plan-grid .qrb-card,
+.qrb-dashboard-grid .qrb-card:first-child {
+    background: linear-gradient(135deg, #ffffff 0%, #eefcf8 72%, #fff7ed 100%);
 }
 
 .qrb-metric {
