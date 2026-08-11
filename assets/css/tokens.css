@@ -1,13 +1,13 @@
 .qrb-body {
-    --qrb-primary: #219b8b;
-    --qrb-primary-hover: #188172;
-    --qrb-primary-active: #12695f;
+    --qrb-primary: #217a9b;
+    --qrb-primary-hover: #1a6480;
+    --qrb-primary-active: #15536b;
     --qrb-accent: #f2a100;
     --qrb-accent-warm: #f2a100;
-    --qrb-bg: #c5d6d2;
+    --qrb-bg: #d0d7dc;
     --qrb-surface: #ffffff;
     --qrb-surface-elevated: #ffffff;
-    --qrb-sidebar: #40444c;
+    --qrb-sidebar: #d0d7dc;
     --qrb-border: #dde5e8;
     --qrb-border-strong: #bdc9cf;
     --qrb-text: #18212b;

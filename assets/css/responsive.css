@@ -10,15 +10,19 @@
     }
 
     .qrb-sidebar {
-        height: 100vh;
+        height: calc(100vh - var(--qrb-topbar-height));
         left: 0;
         max-width: min(86vw, 320px);
         position: fixed;
-        top: 0;
+        top: var(--qrb-topbar-height);
         transform: translateX(-105%);
         transition: transform var(--qrb-transition);
         width: var(--qrb-sidebar-width);
         z-index: 80;
+    }
+
+    .qrb-topbar .qrb-brand {
+        min-width: 0;
     }
 
     .qrb-body.qrb-drawer-open .qrb-sidebar {
@@ -57,7 +61,7 @@
 
     .qrb-topbar-actions {
         gap: var(--qrb-space-3);
-        margin-left: 0;
+        margin-left: auto;
         padding-bottom: var(--qrb-space-2);
     }
 

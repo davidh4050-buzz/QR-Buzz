@@ -14,6 +14,15 @@
     position: relative;
 }
 
+.qrb-qr-card-delete {
+    margin: 0;
+}
+
+.qrb-qr-card-delete .qrb-icon-button {
+    justify-content: center;
+    padding: 0;
+}
+
 .qrb-qr-card::before {
     background: var(--qrb-border-strong);
     content: "";
@@ -36,7 +45,7 @@
 
 .qrb-qr-card-preview {
     align-items: center;
-    background: linear-gradient(180deg, #f8fafc, #e9eef5);
+    background: linear-gradient(135deg, #ffffff 0%, #eefcf8 72%, #fff7ed 100%);
     border: 1px solid #e2e8f0;
     border-radius: var(--qrb-radius);
     display: flex;
