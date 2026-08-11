@@ -128,5 +128,11 @@
 .qrb-logo-preview img {
     border: 1px solid var(--qrb-border);
     border-radius: var(--qrb-radius-sm);
+    display: block;
+    height: 72px;
     margin-top: var(--qrb-space-2);
+    max-width: 96px;
+    object-fit: contain;
+    padding: 4px;
+    width: auto;
 }
