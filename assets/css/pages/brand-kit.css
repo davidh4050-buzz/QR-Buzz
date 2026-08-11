@@ -1,0 +1,6 @@
+.qrb-brand-kit-preview {
+    background: #f8fafc;
+    border: 1px solid var(--qrb-border);
+    border-radius: var(--qrb-radius);
+    padding: var(--qrb-space-4);
+}

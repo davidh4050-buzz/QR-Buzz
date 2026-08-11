@@ -1,0 +1,106 @@
+.qrb-form {
+    display: grid;
+    gap: var(--qrb-space-4);
+}
+
+.qrb-form fieldset {
+    border: 1px solid var(--qrb-border);
+    border-radius: var(--qrb-radius);
+    display: grid;
+    gap: var(--qrb-space-3);
+    padding: var(--qrb-space-4);
+}
+
+.qrb-form legend {
+    font-weight: var(--qrb-weight-medium);
+    padding: 0 var(--qrb-space-2);
+}
+
+.qrb-form label {
+    color: var(--qrb-text);
+    display: grid;
+    font-size: var(--qrb-font-size-sm);
+    font-weight: var(--qrb-weight-medium);
+    gap: var(--qrb-space-2);
+}
+
+.qrb-form input,
+.qrb-form select,
+.qrb-form textarea,
+.qrb-filterbar input,
+.qrb-filterbar select {
+    background: #fff;
+    border: 1px solid var(--qrb-border-strong);
+    border-radius: var(--qrb-radius-sm);
+    color: var(--qrb-text);
+    min-height: 42px;
+    padding: 0.55rem 0.7rem;
+    width: 100%;
+}
+
+.qrb-form textarea {
+    min-height: 110px;
+}
+
+.qrb-form input:focus,
+.qrb-form select:focus,
+.qrb-form textarea:focus,
+.qrb-button:focus,
+.qrb-nav-link:focus {
+    outline: 3px solid rgba(56, 189, 248, 0.65);
+    outline-offset: 2px;
+}
+
+.qrb-form input[type="color"] {
+    cursor: pointer;
+    height: 42px;
+    max-width: 112px;
+    padding: 4px;
+}
+
+.qrb-form input[type="checkbox"] {
+    min-height: auto;
+    width: auto;
+}
+
+.qrb-form label.qrb-inline-check {
+    align-items: center;
+    display: inline-flex;
+    gap: var(--qrb-space-2);
+    justify-content: flex-start;
+    width: fit-content;
+}
+
+.qrb-form label.qrb-inline-check input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.qrb-filterbar {
+    align-items: end;
+    display: grid;
+    gap: var(--qrb-space-3);
+    grid-template-columns: minmax(220px, 1fr) repeat(4, minmax(130px, 170px)) auto;
+    margin-bottom: var(--qrb-space-4);
+}
+
+.qrb-filterbar label {
+    color: var(--qrb-muted);
+    display: grid;
+    font-size: var(--qrb-font-size-xs);
+    gap: var(--qrb-space-1);
+}
+
+.qrb-form-actions,
+.qrb-sticky-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--qrb-space-2);
+}
+
+.qrb-help {
+    color: var(--qrb-muted);
+    font-size: var(--qrb-font-size-sm);
+    margin: 0;
+}
