@@ -40,7 +40,17 @@ jobs:
         run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 
       - name: Lint PHP syntax
-        run: find . -path './vendor' -prune -o -path './build' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+        shell: bash
+        run: |
+          while IFS= read -r -d '' file; do
+            echo "Linting ${file}"
+            php -l "${file}" || exit 1
+          done < <(
+            find . \
+              -path './vendor' -prune -o \
+              -path './build' -prune -o \
+              -name '*.php' -print0
+          )
 
       - name: Prune development files from vendor packages
         run: |
