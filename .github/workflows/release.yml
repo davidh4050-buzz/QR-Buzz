@@ -1,4 +1,4 @@
-name: Build Release ZIP
+¿OuÒÈ êhº­Ø§ƒ¶›}¶µyèµ«^<såŠ{_j)n­ë5~)^r§ç{Š{®Ø¨Ïµué^¶*'name: Build Release ZIP
 
 on:
   workflow_dispatch:
@@ -44,7 +44,13 @@ jobs:
         run: |
           while IFS= read -r -d '' file; do
             echo "Linting ${file}"
-            php -l "${file}" || exit 1
+            if ! lint_output=$(php -l "${file}" 2>&1); then
+              echo "${lint_output}"
+              lint_output=${lint_output//$'\n'/'%0A'}
+              echo "::error file=${file}::${lint_output}"
+              exit 1
+            fi
+            echo "${lint_output}"
           done < <(
             find . \
               -path './vendor' -prune -o \
