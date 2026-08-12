@@ -36,6 +36,8 @@ class Plugin {
         (new HostedAppController())->init();
         (new PlatformErrorHandler())->init();
         (new PlatformAdminController())->init();
+        add_filter('show_admin_bar', function(bool $show): bool { return current_user_can('qrbuzz_manage_platform') ? $show : false; });
+        add_action('admin_init', function(): void { if (wp_doing_ajax() || current_user_can('qrbuzz_manage_platform') || !is_user_logged_in()) { return; } $user = wp_get_current_user(); if (in_array('qrbuzz_customer', (array) $user->roles, true)) { wp_safe_redirect(home_url('/app/dashboard')); exit; } });
 
         if (is_admin()) {
             (new PlatformPage())->init();

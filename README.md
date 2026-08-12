@@ -2,7 +2,7 @@
 
 QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, user asset libraries, campaigns, smart destinations, hosted accounts, subscriptions, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
 
-v0.9.9 is the User Asset Library release. It adds a dedicated QR Buzz Asset Library for reusable logo artwork, moves QR Studio logo selection away from the WordPress Media Library, and preserves legacy logo attachments for existing QR codes.
+v0.9.10 is the Signup & Onboarding release. It sends every new Free account directly into the real QR Studio, adds standards-based Google OpenID Connect authentication and safe identity linking, and migrates legacy onboarding states without changing existing workspaces, plans, QR codes, analytics, or Asset Library data.
 
 ## Dynamic vs Static QR Codes
 
@@ -30,6 +30,27 @@ Do not install GitHub's automatic source-code ZIP from the green Code button. Th
 If you download a GitHub Actions artifact, unzip that download first. The artifact contains the actual WordPress plugin file named `qr-buzz.zip`; upload that inner ZIP to WordPress.
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
+
+## Features in v0.9.10
+
+- Redesigned responsive hosted registration, login, recovery and verification screens
+- Added Google OpenID Connect signup/login with server-side token validation
+- Added provider-based authentication identities and ownership-confirmed account linking
+- Automatically creates a default workspace and idempotent Free subscription for new accounts
+- Replaced the plan/workspace onboarding state machine with direct first-QR creation
+- Added first-use QR Studio guidance, completion actions, verification notice and state-aware checklist
+- Added upgrade-safe legacy onboarding migration and Google configuration diagnostics
+
+## Google authentication setup
+
+Create an OAuth 2.0 Web application in Google Cloud. Add the production/staging site origins and the exact callback URI `https://YOUR-DOMAIN.example/auth/google/callback`. Configure credentials outside source control:
+
+```php
+define('QR_BUZZ_GOOGLE_CLIENT_ID', 'your-client-id.apps.googleusercontent.com');
+define('QR_BUZZ_GOOGLE_CLIENT_SECRET', 'your-client-secret');
+```
+
+Equivalent environment variables are supported. QR Buzz requests only `openid email profile`, stores no Google access tokens, uses the validated `sub` claim as the provider key, and treats a validated Google email as verified. If credentials are absent, Google buttons are hidden and email/password authentication continues normally.
 
 ## Features in v0.9.9
 

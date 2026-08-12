@@ -8,7 +8,7 @@ class HealthCheckService {
 
     public function checks(): array {
         global $wpdb;
-        $tables = [Schema::workspacesTable(), Schema::qrcodesTable(), Schema::scansTable(), Schema::campaignsTable(), Schema::subscriptionsTable(), Schema::auditEventsTable(), Schema::applicationErrorsTable(), Schema::featureFlagsTable()];
+        $tables = [Schema::workspacesTable(), Schema::qrcodesTable(), Schema::scansTable(), Schema::campaignsTable(), Schema::subscriptionsTable(), Schema::authIdentitiesTable(), Schema::auditEventsTable(), Schema::applicationErrorsTable(), Schema::featureFlagsTable()];
         $missing = [];
         foreach ($tables as $table) {
             if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) { $missing[] = $table; }
@@ -20,6 +20,7 @@ class HealthCheckService {
             ['QR generation', class_exists(QRGenerator::class) ? 'healthy' : 'failure', 'Local QR generator class is available.', 'Confirm bundled dependencies are present in the release ZIP.'],
             ['SVG downloads', $generator->supportsSvg() ? 'healthy' : 'warning', $generator->supportsSvg() ? 'SVG writer is available.' : 'SVG writer is not available.', 'Use PNG downloads or check bundled dependency installation.'],
             ['REST API', function_exists('register_rest_route') ? 'healthy' : 'failure', 'WordPress REST API functions are available.', 'Check WordPress installation health.'],
+            ['Google authentication', $this->googleConfigured() ? 'healthy' : 'warning', $this->googleConfigured() ? 'Google Client ID and secret are present.' : 'Google Sign-In is not configured; email authentication remains available.', 'Set QR_BUZZ_GOOGLE_CLIENT_ID and QR_BUZZ_GOOGLE_CLIENT_SECRET outside source control.'],
             ['Stripe checkout', $this->stripeConfigured() ? 'healthy' : 'warning', $this->stripeConfigured() ? 'Stripe test configuration is present.' : 'Stripe test configuration is incomplete.', 'Configure Stripe test constants before testing paid plans.'],
             ['Webhook secret', $this->webhookSecretConfigured() ? 'healthy' : 'warning', $this->webhookSecretConfigured() ? 'Stripe webhook secret is configured.' : 'Stripe webhook secret is not configured.', 'Set QR_BUZZ_STRIPE_WEBHOOK_SECRET before testing webhooks.'],
             ['Email sending', function_exists('wp_mail') ? 'unknown' : 'failure', function_exists('wp_mail') ? 'WordPress mail function is available; delivery depends on site mail configuration.' : 'WordPress mail function is unavailable.', 'Send a verification email test from a user detail screen.'],
@@ -34,4 +35,5 @@ class HealthCheckService {
 
     private function stripeConfigured(): bool { return (defined('QR_BUZZ_STRIPE_SECRET_KEY') && QR_BUZZ_STRIPE_SECRET_KEY) || getenv('QR_BUZZ_STRIPE_SECRET_KEY'); }
     private function webhookSecretConfigured(): bool { return (defined('QR_BUZZ_STRIPE_WEBHOOK_SECRET') && QR_BUZZ_STRIPE_WEBHOOK_SECRET) || getenv('QR_BUZZ_STRIPE_WEBHOOK_SECRET'); }
+    private function googleConfigured(): bool { $id = (defined('QR_BUZZ_GOOGLE_CLIENT_ID') && QR_BUZZ_GOOGLE_CLIENT_ID) || getenv('QR_BUZZ_GOOGLE_CLIENT_ID'); $secret = (defined('QR_BUZZ_GOOGLE_CLIENT_SECRET') && QR_BUZZ_GOOGLE_CLIENT_SECRET) || getenv('QR_BUZZ_GOOGLE_CLIENT_SECRET'); return (bool) ($id && $secret); }
 }

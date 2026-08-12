@@ -31,7 +31,8 @@ class AuthService {
         $userId = wp_insert_user(['user_login' => $email, 'user_email' => $email, 'user_pass' => $password, 'first_name' => $first, 'last_name' => $last, 'display_name' => trim($first . ' ' . $last), 'role' => 'qrbuzz_customer']);
         if (is_wp_error($userId)) { return new \WP_Error('registration_failed', 'Please check your details and try again.'); }
         $this->profiles->ensure((int) $userId, true);
-        $workspaceId = $this->workspaces->createForUser((int) $userId, $first . "'s Workspace", 'free', ['onboarding_status' => 'pending', 'onboarding_step' => 'plan']);
+        update_user_meta((int) $userId, 'qrbuzz_first_run_checklist', 1);
+        $workspaceId = $this->workspaces->createForUser((int) $userId, $this->workspaceName($first), 'free', ['onboarding_status' => 'new', 'onboarding_step' => 'first_qr']);
         $this->subscriptions->ensureFree($workspaceId, (int) $userId);
         $this->sendVerification((int) $userId);
         $this->events->record('user_registered', ['user_id' => (int) $userId, 'workspace_id' => $workspaceId]);
@@ -40,6 +41,23 @@ class AuthService {
         wp_set_auth_cookie((int) $userId, true, is_ssl());
         return (int) $userId;
     }
+
+    public function registerGoogle(array $identity) {
+        $email = sanitize_email((string) ($identity['email'] ?? ''));
+        if (empty($identity['email_verified']) || !is_email($email) || email_exists($email)) { return new \WP_Error('google_collision', 'An account already exists for this email.'); }
+        $first = sanitize_text_field((string) ($identity['given_name'] ?? '')); $last = sanitize_text_field((string) ($identity['family_name'] ?? ''));
+        $userId = wp_insert_user(['user_login' => $email, 'user_email' => $email, 'user_pass' => wp_generate_password(48, true, true), 'first_name' => $first, 'last_name' => $last, 'display_name' => trim($first . ' ' . $last) ?: $email, 'role' => 'qrbuzz_customer']);
+        if (is_wp_error($userId)) { return new \WP_Error('registration_failed', 'We could not create your account.'); }
+        $this->profiles->ensure((int) $userId, true); $this->profiles->markEmailVerified((int) $userId);
+        update_user_meta((int) $userId, 'qrbuzz_first_run_checklist', 1);
+        $workspaceId = $this->workspaces->createForUser((int) $userId, $this->workspaceName($first), 'free', ['onboarding_status' => 'new', 'onboarding_step' => 'first_qr']);
+        $this->subscriptions->ensureFree($workspaceId, (int) $userId);
+        $this->events->record('user_registered', ['user_id' => (int) $userId, 'workspace_id' => $workspaceId, 'method' => 'google']);
+        $this->events->record('workspace_created', ['user_id' => (int) $userId, 'workspace_id' => $workspaceId]);
+        return (int) $userId;
+    }
+
+    public function establishSession(int $userId, bool $remember = true): void { wp_set_current_user($userId); wp_set_auth_cookie($userId, $remember, is_ssl()); $this->profiles->markLogin($userId); }
 
     public function login(string $login, string $password, bool $remember = false) {
         $user = wp_signon(['user_login' => sanitize_text_field($login), 'user_password' => $password, 'remember' => $remember], is_ssl());
@@ -53,8 +71,10 @@ class AuthService {
         $token = wp_generate_password(32, false, false);
         $this->profiles->setVerificationToken($userId, $token);
         $url = add_query_arg(['user' => $userId, 'token' => $token], home_url('/verify-email'));
-        wp_mail($user->user_email, 'Verify your QR Buzz account', "Welcome to QR Buzz. Verify your email here: " . $url);
+        wp_mail($user->user_email, 'Welcome to QR Buzz — verify your email', "Welcome to QR Buzz\n\nVerify your email: " . $url . "\n\nOnce you're in, you can create your first QR straight away.", ['Content-Type: text/plain; charset=UTF-8']);
+        $this->events->record('verification_sent', ['user_id' => $userId]);
     }
 
     public function strongPassword(string $password): bool { return strlen($password) >= 10 && preg_match('/[a-z]/', $password) && preg_match('/[A-Z]/', $password) && preg_match('/[0-9]/', $password); }
+    private function workspaceName(string $first): string { return ($first !== '' ? $first : 'My') . ($first !== '' ? "'s Workspace" : ' Workspace'); }
 }

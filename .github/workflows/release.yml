@@ -18,6 +18,7 @@ on:
       - v0.9.7-platform-admin
       - v0.9.8-ui-ux-polish
       - v0.9.9-user-assets
+      - v0.9.10-signup-onboarding
     tags:
       - 'v*'
 

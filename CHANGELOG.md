@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.10
+- Redesigned QR Buzz registration and login experience
+- Added Google OpenID Connect authentication and provider-based identity records
+- Added safe Google linking after password authentication for matching existing accounts
+- Defaulted new accounts to one Free workspace and subscription without Stripe checkout
+- Refactored legacy plan/workspace onboarding into direct first-QR creation
+- Added first-QR guidance and completion actions, verification notice, and state-aware checklist
+- Added authentication diagnostics, events, migration logic, and Google setup documentation
+- Preserved existing users, workspaces, subscriptions, QR codes, analytics, and Asset Library data
+
 ## 0.9.9
 - Added a dedicated hosted Asset Library at `/app/assets`
 - Added QR Buzz-controlled upload storage for per-workspace, per-user logo assets under WordPress uploads

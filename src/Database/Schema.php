@@ -12,6 +12,7 @@ class Schema {
     public static function workspacesTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_workspaces'; }
     public static function membershipsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_workspace_members'; }
     public static function profilesTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_user_profiles'; }
+    public static function authIdentitiesTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_auth_identities'; }
     public static function subscriptionsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_subscriptions'; }
     public static function webhookEventsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_webhook_events'; }
     public static function auditEventsTable(): string { global $wpdb; return $wpdb->prefix . 'qrbuzz_audit_events'; }

@@ -2,7 +2,7 @@
 namespace QRBuzz\Database;
 
 class Installer {
-    public const DESIGN_SCHEMA_VERSION = '2026-08-11-user-assets';
+    public const DESIGN_SCHEMA_VERSION = '2026-08-12-signup-onboarding';
 
     public static function activate(): void {
         self::createTables();
@@ -25,6 +25,7 @@ class Installer {
         $assetsTable = Schema::assetsTable();
         $membersTable = Schema::membershipsTable();
         $profilesTable = Schema::profilesTable();
+        $authIdentitiesTable = Schema::authIdentitiesTable();
         $subscriptionsTable = Schema::subscriptionsTable();
         $webhookEventsTable = Schema::webhookEventsTable();
         $auditEventsTable = Schema::auditEventsTable();
@@ -233,6 +234,21 @@ class Installer {
             KEY onboarding_status (onboarding_status)
         ) {$charsetCollate};");
 
+        dbDelta("CREATE TABLE {$authIdentitiesTable} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL,
+            provider varchar(32) NOT NULL,
+            provider_subject varchar(160) NOT NULL,
+            provider_email varchar(191) NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            last_login_at datetime NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY provider_subject (provider, provider_subject),
+            KEY user_id (user_id),
+            KEY provider (provider)
+        ) {$charsetCollate};");
+
         dbDelta("CREATE TABLE {$subscriptionsTable} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             workspace_id bigint(20) unsigned NOT NULL,
@@ -400,6 +416,7 @@ class Installer {
         self::backfillWorkspaceIds($workspaceId);
         self::backfillMemberships($workspaceId);
         self::backfillSubscription($workspaceId);
+        self::migrateLegacyOnboarding();
         self::seedFeatureFlags();
     }
 
@@ -444,6 +461,16 @@ class Installer {
         if ($exists > 0) { return; }
         $now = current_time('mysql');
         $wpdb->insert(Schema::subscriptionsTable(), ['workspace_id' => $workspaceId, 'user_id' => $workspace->ownerUserId ?: null, 'plan_key' => $workspace->planKey, 'status' => $workspace->planKey === 'free' ? 'free' : 'active', 'created_at' => $now, 'updated_at' => $now], ['%d','%d','%s','%s','%s','%s']);
+    }
+
+    private static function migrateLegacyOnboarding(): void {
+        global $wpdb;
+        $workspaces = Schema::workspacesTable(); $profiles = Schema::profilesTable(); $qrs = Schema::qrcodesTable();
+        // Established workspaces never receive first-use UI. Legacy plan/workspace steps move directly to the real QR Studio.
+        $wpdb->query("UPDATE {$workspaces} w SET onboarding_status = 'complete', onboarding_step = 'complete' WHERE EXISTS (SELECT 1 FROM {$qrs} q WHERE q.workspace_id = w.id)");
+        $wpdb->query("UPDATE {$workspaces} SET onboarding_status = 'new', onboarding_step = 'first_qr' WHERE onboarding_status <> 'complete' AND (onboarding_step IN ('plan','workspace','') OR onboarding_step IS NULL)");
+        $wpdb->query("UPDATE {$profiles} p SET onboarding_status = 'complete', onboarding_step = 'complete' WHERE EXISTS (SELECT 1 FROM {$workspaces} w WHERE w.owner_user_id = p.user_id AND w.onboarding_status = 'complete')");
+        $wpdb->query("UPDATE {$profiles} SET onboarding_status = 'new', onboarding_step = 'first_qr' WHERE onboarding_status <> 'complete' AND (onboarding_step IN ('plan','workspace','') OR onboarding_step IS NULL)");
     }
 
     private static function backfillStatuses(): void { global $wpdb; $table = Schema::qrcodesTable(); $wpdb->query("UPDATE {$table} SET status = 'active' WHERE status = '' OR status IS NULL"); $wpdb->query("UPDATE {$table} SET status = 'paused' WHERE active = 0 AND status = 'active'"); }
