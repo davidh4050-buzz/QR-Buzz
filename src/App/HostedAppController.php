@@ -124,7 +124,7 @@ class HostedAppController {
         if ($this->rateLimited('register')) { $this->redirect('/register?error=rate'); }
         $user = $this->auth->register($_POST);
         if (is_wp_error($user)) { $this->redirect('/register?error=' . rawurlencode($user->get_error_code())); }
-        $this->redirect('/app/onboarding');
+        $this->completeOnboardingAndRedirect();
     }
 
     private function postLogin(): void {
@@ -274,10 +274,8 @@ class HostedAppController {
 
     private function appPage(string $path): void {
         $workspace = $this->workspaces->current();
-        $allowedDuringOnboarding = ['app/onboarding', 'app/qr/new'];
-        if (!$workspace->onboardingComplete() && !in_array($path, $allowedDuringOnboarding, true) && !preg_match('#^app/qr/(\d+)$#', $path) && !preg_match('#^app/qr/(\d+)/studio$#', $path)) { $this->redirect('/app/onboarding'); }
+        if (!$workspace->onboardingComplete() || $path === 'app/onboarding') { $this->completeOnboardingAndRedirect($workspace); }
         if ($path === 'app' || $path === 'app/dashboard') { $this->app('Dashboard', $this->dashboard()); }
-        if ($path === 'app/onboarding') { $this->page('Onboarding', $this->onboarding()); }
         if ($path === 'app/library') { $this->app('Library', $this->library()); }
         if ($path === 'app/assets') { $this->app('Assets', $this->assetLibrary()); }
         if ($path === 'app/qr/new') { $this->app('New QR', $this->qrForm()); }
@@ -596,7 +594,8 @@ class HostedAppController {
     }
     private function googleButton(string $intent): string { return $this->google->configured() ? '<p><a class="qrb-button qrb-button-primary" href="' . esc_url(home_url('/auth/google?intent=' . rawurlencode($intent))) . '">Continue with Google</a></p>' : ''; }
     private function requireApp(): void { if (!is_user_logged_in()) { $this->redirect('/login?redirect=' . rawurlencode(home_url('/' . $this->path()))); } }
-    private function redirectAfterLogin(): void { $w = $this->workspaces->current(); $this->redirect($w->onboardingComplete() ? '/app/dashboard' : '/app/onboarding'); }
+    private function redirectAfterLogin(): void { $w = $this->workspaces->current(); if (!$w->onboardingComplete()) { $this->completeOnboardingAndRedirect($w); } $this->redirect('/app/dashboard'); }
+    private function completeOnboardingAndRedirect($workspace = null): void { $workspace = $workspace ?: $this->workspaces->current(); if (!$workspace->onboardingComplete()) { $this->completeOnboarding(); (new \QRBuzz\Platform\PlatformEventRepository())->record('onboarding_completed', ['user_id' => get_current_user_id(), 'workspace_id' => $workspace->id]); } $this->redirect('/app/dashboard?welcome=1'); }
     private function completeOnboarding(): void { $this->workspaceRepo->updateOnboarding($this->workspaces->id(), 'complete', 'complete'); $this->profiles->updateOnboarding(get_current_user_id(), 'complete', 'complete'); }
     private function payloadFromPost(string $type): array { $payload = isset($_POST['payload']) && is_array($_POST['payload']) ? wp_unslash($_POST['payload']) : []; $clean = []; foreach ($payload as $key => $value) { $clean[sanitize_key((string) $key)] = is_scalar($value) ? sanitize_textarea_field((string) $value) : ''; } if ($type === 'dynamic_url') { $clean['destination_url'] = esc_url_raw($clean['destination_url'] ?? ''); } if ($type === 'static_url') { $clean['url'] = esc_url_raw($clean['url'] ?? $clean['destination_url'] ?? ''); } if ($type === 'vcard' && isset($clean['website'])) { $clean['website'] = esc_url_raw($clean['website']); } if ($type === 'email' && isset($clean['recipient'])) { $clean['recipient'] = sanitize_email($clean['recipient']); } $clean['hidden'] = !empty($payload['hidden']) ? '1' : ''; return $clean; }
     private function smartRuleDataFromPost(): array { $status = sanitize_key((string) ($_POST['status'] ?? 'active')); return ['name' => sanitize_text_field((string) ($_POST['name'] ?? '')), 'priority' => absint($_POST['priority'] ?? 10), 'status' => $status === 'inactive' ? 'inactive' : 'active', 'destination_url' => esc_url_raw((string) ($_POST['destination_url'] ?? '')), 'starts_at' => $this->optionalDateTime('starts_at'), 'ends_at' => $this->optionalDateTime('ends_at'), 'days_of_week' => isset($_POST['days_of_week']) && is_array($_POST['days_of_week']) ? array_map('absint', wp_unslash($_POST['days_of_week'])) : preg_replace('/[^0-9,]/', '', sanitize_text_field((string) ($_POST['days_of_week'] ?? ''))), 'time_start' => sanitize_text_field((string) ($_POST['time_start'] ?? '')), 'time_end' => sanitize_text_field((string) ($_POST['time_end'] ?? ''))]; }
