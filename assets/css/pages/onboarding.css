@@ -4,6 +4,20 @@
     padding: var(--qrb-space-5);
 }
 
+.qrb-public-logo {
+    background: transparent;
+    display: flex;
+    justify-content: center;
+    margin: 0 auto var(--qrb-space-6);
+    text-decoration: none;
+}
+
+.qrb-public-logo img {
+    display: block;
+    height: auto;
+    max-width: min(320px, 78vw);
+}
+
 .qrb-auth-intro { text-align: center; margin-bottom: var(--qrb-space-5); }
 .qrb-auth-intro h1 { margin-bottom: var(--qrb-space-2); }
 .qrb-auth-card { width: min(100%, 34rem); margin-inline: auto; }

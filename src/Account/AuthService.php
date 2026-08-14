@@ -71,10 +71,35 @@ class AuthService {
         $token = wp_generate_password(32, false, false);
         $this->profiles->setVerificationToken($userId, $token);
         $url = add_query_arg(['user' => $userId, 'token' => $token], home_url('/verify-email'));
-        wp_mail($user->user_email, 'Welcome to QR Buzz — verify your email', "Welcome to QR Buzz\n\nVerify your email: " . $url . "\n\nOnce you're in, you can create your first QR straight away.", ['Content-Type: text/plain; charset=UTF-8']);
+        wp_mail(
+            $user->user_email,
+            'Welcome to QR Buzz - verify your email',
+            $this->brandedEmail(
+                'Welcome to QR Buzz',
+                $this->firstName($user),
+                'Welcome to the world of QR Buzz. We\'re thrilled you have signed up! Let\'s get you started!<br><br>First let\'s verify your email address and then you can get stuck in!',
+                'Verify your email',
+                $url
+            ),
+            ['Content-Type: text/html; charset=UTF-8']
+        );
         $this->events->record('verification_sent', ['user_id' => $userId]);
     }
 
     public function strongPassword(string $password): bool { return strlen($password) >= 10 && preg_match('/[a-z]/', $password) && preg_match('/[A-Z]/', $password) && preg_match('/[0-9]/', $password); }
     private function workspaceName(string $first): string { return ($first !== '' ? $first : 'My') . ($first !== '' ? "'s Workspace" : ' Workspace'); }
+    private function firstName(\WP_User $user): string { return sanitize_text_field((string) ($user->first_name ?: $user->display_name ?: 'there')); }
+    private function brandedEmail(string $title, string $name, string $body, string $button, string $url): string {
+        $logo = defined('QR_BUZZ_URL') ? QR_BUZZ_URL . 'assets/qr-buzz-logo-header.png' : '';
+        return '<!doctype html><html><body style="margin:0;background:#c5d6d2;padding:28px;font-family:Arial,Helvetica,sans-serif;color:#1f2933;">'
+            . '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">'
+            . '<table role="presentation" width="100%" style="max-width:620px;background:#ffffff;border-radius:8px;padding:30px;" cellspacing="0" cellpadding="0"><tr><td>'
+            . ($logo ? '<p style="text-align:center;margin:0 0 26px;"><img src="' . esc_url($logo) . '" alt="QR Buzz" style="max-width:260px;height:auto;border:0;background:transparent;"></p>' : '')
+            . '<h1 style="margin:0 0 18px;font-size:26px;line-height:1.25;color:#20252b;">' . esc_html($title) . '</h1>'
+            . '<p style="font-size:16px;line-height:1.6;margin:0 0 18px;">Hi ' . esc_html($name) . ',</p>'
+            . '<p style="font-size:16px;line-height:1.6;margin:0 0 24px;">' . wp_kses_post($body) . '</p>'
+            . '<p style="margin:0 0 26px;"><a href="' . esc_url($url) . '" style="display:inline-block;background:#219b8b;color:#ffffff;text-decoration:none;font-weight:700;border-radius:6px;padding:13px 18px;">' . esc_html($button) . '</a></p>'
+            . '<p style="font-size:16px;line-height:1.6;margin:0;">We hope you enjoy using QR Buzz. Happy creating!<br>The QR Buzz Team</p>'
+            . '</td></tr></table></td></tr></table></body></html>';
+    }
 }
