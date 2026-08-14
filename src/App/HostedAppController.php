@@ -141,15 +141,17 @@ class HostedAppController {
         $mode = sanitize_key((string) ($_POST['mode'] ?? 'request'));
         if ($mode === 'reset') {
             check_admin_referer('qrbuzz_password_reset', 'nonce');
-            $user = check_password_reset_key((string) ($_POST['key'] ?? ''), (string) ($_POST['login'] ?? ''));
-            if (is_wp_error($user) || empty($_POST['password']) || $_POST['password'] !== ($_POST['password_confirm'] ?? '') || !$this->auth->strongPassword((string) $_POST['password'])) { $this->redirect('/forgot-password?error=reset'); }
+            $key = (string) ($_POST['key'] ?? '');
+            $login = rawurldecode((string) ($_POST['login'] ?? ''));
+            $user = check_password_reset_key($key, $login);
+            if (is_wp_error($user) || empty($_POST['password']) || $_POST['password'] !== ($_POST['password_confirm'] ?? '') || !$this->auth->strongPassword((string) $_POST['password'])) { $this->redirect('/forgot-password?action=reset&error=reset&key=' . rawurlencode($key) . '&login=' . rawurlencode($login)); }
             reset_password($user, (string) $_POST['password']);
             $this->redirect('/login?reset=1');
         }
         check_admin_referer('qrbuzz_password_request', 'nonce');
         $login = sanitize_text_field((string) ($_POST['login'] ?? ''));
         $user = get_user_by('email', $login) ?: get_user_by('login', $login);
-        if ($user) { $key = get_password_reset_key($user); if (!is_wp_error($key)) { $url = add_query_arg(['action' => 'reset', 'key' => $key, 'login' => rawurlencode($user->user_login)], home_url('/forgot-password')); wp_mail($user->user_email, 'Reset your QR Buzz password', $this->brandedEmail('Reset your QR Buzz password', $this->firstName($user), 'No problem, it happens. Use the button below to choose a fresh QR Buzz password and get back to creating.', 'Reset password', $url), ['Content-Type: text/html; charset=UTF-8']); } }
+        if ($user) { $key = get_password_reset_key($user); if (!is_wp_error($key)) { $url = add_query_arg(['action' => 'reset', 'key' => $key, 'login' => $user->user_login], home_url('/forgot-password')); wp_mail($user->user_email, 'Reset your QR Buzz password', $this->brandedEmail('Reset your QR Buzz password', $this->firstName($user), 'No problem, it happens. Use the button below to choose a fresh QR Buzz password and get back to creating.', 'Reset password', $url), ['Content-Type: text/html; charset=UTF-8']); } }
         $this->redirect('/forgot-password?sent=1');
     }
 
@@ -512,8 +514,28 @@ class HostedAppController {
     private function planCards(bool $form): string { $html = '<div class="qrb-plan-grid">'; foreach ($this->plans->plans() as $key => $plan) { $features = implode(', ', array_keys(array_filter($plan['features']))); $html .= '<div class="qrb-card"><h2>' . esc_html($plan['label']) . '</h2><p>' . esc_html($features) . '</p>'; if ($form) { $button = !$this->stripe->configured() && $key !== 'free' ? 'Choose ' . $plan['label'] . ' (prototype)' : 'Choose ' . $plan['label']; $html .= '<form method="post">' . wp_nonce_field('qrbuzz_onboarding', 'nonce', true, false) . '<input type="hidden" name="onboarding_action" value="plan"><input type="hidden" name="plan_key" value="' . esc_attr($key) . '"><button class="qrb-button qrb-button-primary">' . esc_html($button) . '</button></form>'; } $html .= '</div>'; } return $html . '</div>'; }
 
     private function registerForm(): string { return '<h1>Create your QR Buzz account</h1>' . $this->googleButton('register') . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_register', 'nonce', true, false) . '<label>First name<input name="first_name" required></label><label>Last name<input name="last_name" required></label><label>Email<input type="email" name="email" required></label><label>Password<input type="password" name="password" required></label><label>Confirm password<input type="password" name="password_confirm" required></label><label><input type="checkbox" name="terms" value="1" required> I accept the Terms and Privacy Policy</label><button class="qrb-button qrb-button-primary">Create account</button></form>'; }
-    private function loginForm(): string { $googleLink = sanitize_text_field((string) ($_GET['google_link'] ?? '')); $notice = $googleLink !== '' ? '<p class="qrb-alert">Log in with your existing QR Buzz password to link Google to this account.</p>' : ''; $hidden = $googleLink !== '' ? '<input type="hidden" name="google_link" value="' . esc_attr($googleLink) . '">' : ''; return '<h1>Log in</h1>' . $notice . $this->googleButton('login') . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_login', 'nonce', true, false) . $hidden . '<label>Email or username<input name="login" required></label><label>Password<input type="password" name="password" required></label><label><input type="checkbox" name="remember" value="1"> Remember me</label><button class="qrb-button qrb-button-primary">Log in</button><p><a href="/forgot-password">Forgot password?</a></p></form>'; }
-    private function passwordPage(): string { if (($_GET['action'] ?? '') === 'reset') { return '<h1>Reset password</h1><form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_password_reset', 'nonce', true, false) . '<input type="hidden" name="mode" value="reset"><input type="hidden" name="key" value="' . esc_attr((string) ($_GET['key'] ?? '')) . '"><input type="hidden" name="login" value="' . esc_attr((string) ($_GET['login'] ?? '')) . '"><p class="qrb-help">Use 10 or more characters with an uppercase letter, lowercase letter and number.</p><label>New password<input type="password" name="password"></label><label>Confirm password<input type="password" name="password_confirm"></label><button class="qrb-button qrb-button-primary">Reset password</button></form>'; } return '<h1>Forgot password</h1><form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_password_request', 'nonce', true, false) . '<input type="hidden" name="mode" value="request"><label>Email or username<input name="login" required></label><button class="qrb-button qrb-button-primary">Send reset link</button></form>'; }
+    private function loginForm(): string {
+        $googleLink = sanitize_text_field((string) ($_GET['google_link'] ?? ''));
+        $notice = '';
+        if ($googleLink !== '') { $notice .= '<p class="qrb-alert">Log in with your existing QR Buzz password to link Google to this account.</p>'; }
+        if (!empty($_GET['reset'])) { $notice .= '<p class="qrb-alert qrb-alert-success">Your password has been updated. You can log in with your new password now.</p>'; }
+        if (isset($_GET['error'])) {
+            $error = sanitize_key((string) $_GET['error']);
+            $message = $error === 'rate' ? 'Too many login attempts. Please wait a few minutes and try again.' : 'Login failed. Please check your email or username and password.';
+            $notice .= '<p class="qrb-alert">' . esc_html($message) . '</p>';
+        }
+        $hidden = $googleLink !== '' ? '<input type="hidden" name="google_link" value="' . esc_attr($googleLink) . '">' : '';
+        return '<h1>Log in</h1>' . $notice . $this->googleButton('login') . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_login', 'nonce', true, false) . $hidden . '<label>Email or username<input name="login" required></label><label>Password<input type="password" name="password" required></label><label><input type="checkbox" name="remember" value="1"> Remember me</label><button class="qrb-button qrb-button-primary">Log in</button><p><a href="/forgot-password">Forgot password?</a></p></form>';
+    }
+    private function passwordPage(): string {
+        if (($_GET['action'] ?? '') === 'reset') {
+            $notice = !empty($_GET['error']) ? '<p class="qrb-alert">That reset link could not be used, or the new password did not meet the requirements. Please try again.</p>' : '';
+            return '<h1>Reset password</h1>' . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_password_reset', 'nonce', true, false) . '<input type="hidden" name="mode" value="reset"><input type="hidden" name="key" value="' . esc_attr((string) ($_GET['key'] ?? '')) . '"><input type="hidden" name="login" value="' . esc_attr(rawurldecode((string) ($_GET['login'] ?? ''))) . '"><p class="qrb-help">Use 10 or more characters with an uppercase letter, lowercase letter and number.</p><label>New password<input type="password" name="password"></label><label>Confirm password<input type="password" name="password_confirm"></label><button class="qrb-button qrb-button-primary">Reset password</button></form>';
+        }
+        $notice = !empty($_GET['sent']) ? '<p class="qrb-alert qrb-alert-success">If that account exists, a password reset email is on its way.</p>' : '';
+        if (!empty($_GET['error'])) { $notice .= '<p class="qrb-alert">Please check the reset link and password requirements, then try again.</p>'; }
+        return '<h1>Forgot password</h1>' . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_password_request', 'nonce', true, false) . '<input type="hidden" name="mode" value="request"><label>Email or username<input name="login" required></label><button class="qrb-button qrb-button-primary">Send reset link</button></form>';
+    }
 
     private function verifyEmail(): void { $userId = absint($_GET['user'] ?? 0); $token = (string) ($_GET['token'] ?? ''); $ok = $userId && $token && $this->profiles->verifyByToken($userId, $token); $this->page('Verify email', '<h1>' . ($ok ? 'Email verified' : 'Verification failed') . '</h1><p><a class="qrb-button" href="/app/dashboard">Continue</a></p>'); }
     private function resendVerification(): void {
