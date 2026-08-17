@@ -179,17 +179,9 @@ class HostedAppController {
         $action = sanitize_key((string) ($_POST['onboarding_action'] ?? ''));
         if ($action === 'plan') {
             $plan = sanitize_key((string) ($_POST['plan_key'] ?? 'free'));
-            if (!array_key_exists($plan, $this->plans->plans())) { $plan = 'free'; }
-            if ($plan === 'free' || !$this->stripe->configured()) {
-                $this->workspaceRepo->updatePlan($workspace->id, $plan);
-                $this->subscriptions->upsert($workspace->id, ['user_id' => get_current_user_id(), 'plan_key' => $plan, 'status' => $plan === 'free' ? 'free' : 'active']);
-                $this->workspaceRepo->updateOnboarding($workspace->id, 'pending', 'workspace');
-                $this->profiles->updateOnboarding(get_current_user_id(), 'pending', 'workspace');
-                $this->redirect('/app/onboarding?step=workspace' . ($plan === 'free' ? '' : '&billing=prototype'));
-            }
-            $checkout = $this->stripe->createCheckoutSession($workspace->id, get_current_user_id(), $plan);
-            if (!is_wp_error($checkout)) { wp_safe_redirect($checkout); exit; }
-            $this->redirect('/app/onboarding?step=plan&error=stripe_config');
+            if (in_array($plan, ['pro', 'business'], true)) { $this->redirect('/app/settings/billing?upgrade=' . rawurlencode($plan)); }
+            $this->completeOnboarding();
+            $this->redirect('/app/dashboard');
         }
         if ($action === 'workspace') { $this->workspaceRepo->updateSettings($workspace->id, ['name' => sanitize_text_field((string) ($_POST['workspace_name'] ?? $workspace->name)), 'website_url' => esc_url_raw((string) ($_POST['website_url'] ?? '')), 'intended_use' => sanitize_key((string) ($_POST['intended_use'] ?? '')), 'timezone' => sanitize_text_field((string) ($_POST['timezone'] ?? wp_timezone_string()))]); $this->workspaceRepo->updateOnboarding($workspace->id, 'pending', 'first_qr'); $this->profiles->updateOnboarding(get_current_user_id(), 'pending', 'first_qr'); $this->redirect('/app/onboarding?step=first_qr'); }
         if ($action === 'complete') { $this->completeOnboarding(); (new \QRBuzz\Platform\PlatformEventRepository())->record('onboarding_completed', ['user_id' => get_current_user_id(), 'workspace_id' => $workspace->id]); $this->redirect('/app/dashboard?welcome=1'); }
@@ -303,13 +295,13 @@ class HostedAppController {
             $returnTo = in_array((string) ($_POST['return_to'] ?? ''), ['analytics', 'billing'], true) ? (string) $_POST['return_to'] : 'billing';
             $checkout = $this->stripe->createCheckoutSession($workspaceId, get_current_user_id(), $plan, $returnTo);
             if (is_wp_error($checkout)) { $this->redirect('/app/settings/billing?error=checkout&upgrade=' . rawurlencode($plan)); }
-            wp_safe_redirect($checkout);
+            wp_redirect($checkout);
             exit;
         }
         if ($action === 'portal') {
             $portal = $this->stripe->createPortalSession($workspaceId);
             if (is_wp_error($portal)) { $this->redirect('/app/settings/billing?error=portal'); }
-            wp_safe_redirect($portal);
+            wp_redirect($portal);
             exit;
         }
         $this->redirect('/app/settings/billing');
