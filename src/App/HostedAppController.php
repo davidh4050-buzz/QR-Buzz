@@ -6,11 +6,13 @@ use QRBuzz\Account\AuthService;
 use QRBuzz\Account\GoogleAuthService;
 use QRBuzz\Account\ProfileRepository;
 use QRBuzz\Analytics\AnalyticsRepository;
+use QRBuzz\Analytics\AnalyticsCsvExporter;
 use QRBuzz\Analytics\DateRange;
 use QRBuzz\Analytics\PerQRAnalyticsService;
 use QRBuzz\Analytics\QRInsightService;
 use QRBuzz\Assets\AssetRepository;
 use QRBuzz\Assets\AssetStorage;
+use QRBuzz\Billing\BillingPlanRegistry;
 use QRBuzz\Billing\StripeService;
 use QRBuzz\Billing\SubscriptionRepository;
 use QRBuzz\Database\CampaignRepository;
@@ -41,6 +43,7 @@ class HostedAppController {
     private WorkspaceService $workspaces;
     private EntitlementService $entitlements;
     private PlanRegistry $plans;
+    private BillingPlanRegistry $billingPlans;
     private QRRepository $qrCodes;
     private CampaignRepository $campaigns;
     private QRPayloadService $payloads;
@@ -57,12 +60,14 @@ class HostedAppController {
     private QRInsightService $insights;
     private AssetRepository $assets;
     private AssetStorage $assetStorage;
+    private AnalyticsCsvExporter $analyticsExporter;
 
     public function __construct() {
         $this->profiles = new ProfileRepository();
         $this->workspaceRepo = new WorkspaceRepository();
         $this->workspaces = new WorkspaceService($this->workspaceRepo);
         $this->plans = new PlanRegistry();
+        $this->billingPlans = new BillingPlanRegistry();
         $this->entitlements = new EntitlementService($this->workspaces, $this->plans);
         $this->auth = new AuthService($this->profiles, $this->workspaceRepo);
         $this->identities = new AuthIdentityRepository();
@@ -75,8 +80,9 @@ class HostedAppController {
         $this->themes = new QRThemeRegistry();
         $this->brandKit = new BrandKitSettings($this->themes, $this->workspaces);
         $this->subscriptions = new SubscriptionRepository();
-        $this->stripe = new StripeService($this->subscriptions, $this->workspaceRepo);
+        $this->stripe = new StripeService($this->subscriptions, $this->workspaceRepo, null, null, $this->billingPlans);
         $this->analyticsRepo = new AnalyticsRepository(null, $this->workspaces);
+        $this->analyticsExporter = new AnalyticsCsvExporter($this->entitlements, $this->workspaces);
         $this->perQrAnalytics = new PerQRAnalyticsService(null, $this->workspaces);
         $this->rules = new DestinationRuleRepository($this->workspaces);
         $this->resolver = new DestinationResolver($this->rules);
@@ -117,13 +123,21 @@ class HostedAppController {
         if (preg_match('#^app/campaigns/(\d+)$#', $path, $m)) { $this->postCampaign((int) $m[1]); }
         if ($path === 'app/settings/account') { $this->postAccount(); }
         if ($path === 'app/settings/workspace') { $this->postWorkspace(); }
+        if ($path === 'app/settings/billing') { $this->postBilling(); }
     }
 
     private function postRegister(): void {
         check_admin_referer('qrbuzz_register', 'nonce');
-        if ($this->rateLimited('register')) { $this->redirect('/register?error=rate'); }
+        $plan = sanitize_key((string) ($_POST['plan'] ?? 'free'));
+        if (!in_array($plan, ['free', 'pro', 'business'], true)) { $plan = 'free'; }
+        $planQuery = $plan === 'free' ? '' : '&plan=' . rawurlencode($plan);
+        if ($this->rateLimited('register')) { $this->redirect('/register?error=rate' . $planQuery); }
         $user = $this->auth->register($_POST);
-        if (is_wp_error($user)) { $this->redirect('/register?error=' . rawurlencode($user->get_error_code())); }
+        if (is_wp_error($user)) { $this->redirect('/register?error=' . rawurlencode($user->get_error_code()) . $planQuery); }
+        if (in_array($plan, ['pro', 'business'], true)) {
+            $this->completeOnboarding();
+            $this->redirect('/app/settings/billing?upgrade=' . rawurlencode($plan));
+        }
         $this->completeOnboardingAndRedirect();
     }
 
@@ -279,10 +293,35 @@ class HostedAppController {
         $this->redirect('/app/settings/account?saved=1' . ($emailChanged ? '&verify=1' : ''));
     }
 
+    private function postBilling(): void {
+        check_admin_referer('qrbuzz_app_billing', 'nonce');
+        $workspaceId = $this->workspaces->id();
+        $action = sanitize_key((string) ($_POST['billing_action'] ?? ''));
+        if ($action === 'checkout') {
+            $plan = sanitize_key((string) ($_POST['plan_key'] ?? ''));
+            if (!in_array($plan, ['pro', 'business'], true)) { $this->redirect('/app/settings/billing?error=plan'); }
+            $returnTo = in_array((string) ($_POST['return_to'] ?? ''), ['analytics', 'billing'], true) ? (string) $_POST['return_to'] : 'billing';
+            $checkout = $this->stripe->createCheckoutSession($workspaceId, get_current_user_id(), $plan, $returnTo);
+            if (is_wp_error($checkout)) { $this->redirect('/app/settings/billing?error=checkout&upgrade=' . rawurlencode($plan)); }
+            wp_safe_redirect($checkout);
+            exit;
+        }
+        if ($action === 'portal') {
+            $portal = $this->stripe->createPortalSession($workspaceId);
+            if (is_wp_error($portal)) { $this->redirect('/app/settings/billing?error=portal'); }
+            wp_safe_redirect($portal);
+            exit;
+        }
+        $this->redirect('/app/settings/billing');
+    }
+
     private function postWorkspace(): void { check_admin_referer('qrbuzz_app_workspace', 'nonce'); if (!$this->workspaces->isOwner()) { $this->redirect('/app/settings/workspace?error=permission'); } $this->workspaceRepo->updateSettings($this->workspaces->id(), ['name' => sanitize_text_field((string) ($_POST['name'] ?? '')), 'website_url' => esc_url_raw((string) ($_POST['website_url'] ?? '')), 'timezone' => sanitize_text_field((string) ($_POST['timezone'] ?? wp_timezone_string())), 'intended_use' => sanitize_key((string) ($_POST['intended_use'] ?? ''))]); $this->brandKit->saveFromPost($_POST); $this->redirect('/app/settings/workspace?saved=1'); }
 
     private function appPage(string $path): void {
         $workspace = $this->workspaces->current();
+        if ($path === 'app/analytics/export') { $this->analyticsExporter->export('workspace', 0, sanitize_key((string) ($_GET['range'] ?? '30days'))); }
+        if (preg_match('#^app/qr/(\d+)/analytics/export$#', $path, $m)) { $this->analyticsExporter->export('qr', (int) $m[1], sanitize_key((string) ($_GET['range'] ?? '30days'))); }
+        if (preg_match('#^app/campaigns/(\d+)/analytics/export$#', $path, $m)) { $this->analyticsExporter->export('campaign', (int) $m[1], sanitize_key((string) ($_GET['range'] ?? '30days'))); }
         if (!$workspace->onboardingComplete() || $path === 'app/onboarding') { $this->completeOnboardingAndRedirect($workspace); }
         if ($path === 'app' || $path === 'app/dashboard') { $this->app('Dashboard', $this->dashboard()); }
         if ($path === 'app/library') { $this->app('Library', $this->library()); }
@@ -488,9 +527,26 @@ class HostedAppController {
     private function qrAnalyticsBlock(QRCode $qr): string {
         if (!$qr->isTrackable()) { return '<section id="analytics" class="qrb-card"><h2>Analytics ' . $this->tooltip('Static QR codes do not pass through QR Buzz, so scan tracking is not available for them.') . '</h2><p>Static QR codes do not use QR Buzz tracking. To collect analytics, create a Dynamic URL QR code.</p></section>'; }
         $stats = $this->perQrAnalytics->stats($qr->id);
-        $html = '<section id="analytics" class="qrb-card"><h2>Analytics ' . $this->tooltip('Analytics are collected when dynamic QR codes are scanned through their QR Buzz tracking URL.') . '</h2>' . $this->analyticsObservation((int) $stats['total_scans'], (int) $stats['scans_today'], (int) $stats['scans_last_7_days']) . $this->metricsCompact([['Total scans',$stats['total_scans']],['Today',$stats['scans_today']],['Last 7 days',$stats['scans_last_7_days']],['Last 30 days',$stats['scans_last_30_days']],['Latest scan',$stats['latest_scan'] ?: '-']]);
+        $html = '<section id="analytics" class="qrb-card"><div class="qrb-page-head"><h2>Analytics ' . $this->tooltip('Analytics are collected when dynamic QR codes are scanned through their QR Buzz tracking URL.') . '</h2>' . $this->analyticsExportAction('qr', $qr->id, '30days') . '</div>' . $this->analyticsObservation((int) $stats['total_scans'], (int) $stats['scans_today'], (int) $stats['scans_last_7_days']) . $this->metricsCompact([['Total scans',$stats['total_scans']],['Today',$stats['scans_today']],['Last 7 days',$stats['scans_last_7_days']],['Last 30 days',$stats['scans_last_30_days']],['Latest scan',$stats['latest_scan'] ?: '-']]);
+        if (!$this->entitlements->allows('csv_export')) { $html .= $this->premiumUpsell('Export this QR analytics', 'Download this QR code’s scan data as CSV with Pro or Business.'); }
         if ($this->entitlements->allows('advanced_analytics')) { $html .= '<h3>Trend</h3>' . $this->barChart($this->perQrAnalytics->scanCountsByDay($qr->id, 30)) . '<div class="qrb-analytics-grid"><div><h3>Devices</h3>' . $this->breakdownTable($this->perQrAnalytics->deviceBreakdown($qr->id)) . '</div><div><h3>Browsers</h3>' . $this->breakdownTable($this->perQrAnalytics->browserBreakdown($qr->id)) . '</div><div><h3>Referrers</h3>' . $this->breakdownTable($this->perQrAnalytics->referrerBreakdown($qr->id)) . '</div></div><h3>Recent scans</h3>' . $this->recentScansTable($this->perQrAnalytics->recentScans($qr->id, 10)); }
         return $html . '</section>';
+    }
+
+    private function analyticsExportAction(string $scope, int $entityId, string $rangeKey): string {
+        if (!$this->entitlements->allows('csv_export')) { return '<a class="qrb-button" href="' . esc_url(home_url('/app/analytics?upgrade=csv_export')) . '">Export CSV 🔒</a>'; }
+        $path = $scope === 'workspace' ? '/app/analytics/export' : ($scope === 'campaign' ? '/app/campaigns/' . $entityId . '/analytics/export' : '/app/qr/' . $entityId . '/analytics/export');
+        $url = wp_nonce_url(add_query_arg('range', sanitize_key($rangeKey), home_url($path)), 'qrbuzz_analytics_export');
+        return '<a class="qrb-button qrb-button-primary" href="' . esc_url($url) . '">Export CSV</a>';
+    }
+
+    private function premiumUpsell(string $title, string $message): string {
+        return '<section class="qrb-card qrb-premium"><span class="qrb-badge">Pro &amp; Business</span><h2>' . esc_html($title) . '</h2><p>' . esc_html($message) . '</p><div class="qrb-actions"><a class="qrb-button qrb-button-primary" href="/app/settings/billing?upgrade=pro&return_to=analytics">View plans</a><a class="qrb-button" href="/app/analytics">Not now</a></div></section>';
+    }
+
+    private function billingStatusLabel(string $status): string {
+        $labels = ['free' => 'Free', 'active' => 'Active', 'trialing' => 'Trial', 'past_due' => 'Payment issue', 'incomplete' => 'Payment incomplete', 'incomplete_expired' => 'Payment incomplete', 'canceled' => 'Cancelled', 'cancelled' => 'Cancelled', 'unpaid' => 'Payment required', 'paused' => 'Paused'];
+        return $labels[sanitize_key($status)] ?? 'Pending';
     }
 
     private function downloadQr(int $id, string $format): void {
@@ -502,14 +558,16 @@ class HostedAppController {
     }
 
     private function campaignPage(): string { $rows = ''; foreach ($this->campaigns->all() as $c) { $rows .= '<tr><td><a href="' . esc_url(home_url('/app/campaigns/' . $c->id)) . '">' . esc_html($c->name) . '</a><br><small>' . esc_html($c->description ?: 'No description yet') . '</small></td><td>' . $this->statusBadge($c->status) . '</td><td>' . esc_html((string) $c->qrCount) . '</td><td>' . esc_html((string) $c->scanCount) . '</td><td><a class="qrb-button" href="' . esc_url(home_url('/app/campaigns/' . $c->id)) . '">Edit</a></td></tr>'; } $table = $rows ? '<div class="qrb-table-wrap"><table class="qrb-table"><thead><tr><th>Campaign</th><th>Status</th><th>QR codes</th><th>Scans</th><th>Actions</th></tr></thead><tbody>' . $rows . '</tbody></table></div>' : $this->emptyState('Create your first campaign', 'Campaigns help group related QR codes and keep reporting tidy.', '/app/campaigns', 'Create Campaign'); return $this->pageHeader('Campaigns', 'Group related QR codes and track campaign-level activity.') . '<div class="qrb-dashboard-grid"><form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_campaign', 'nonce', true, false) . '<h2>New campaign</h2><label>Name<input name="name" required></label><label>Description<textarea name="description"></textarea></label><button class="qrb-button qrb-button-primary">Create Campaign</button></form><section class="qrb-card"><h2>Campaign list</h2>' . $table . '</section></div>'; }
-    private function campaignEdit(int $id): string { $c = $this->campaigns->find($id); if (!$c) { return $this->emptyState('Campaign not found', 'That campaign could not be found in this workspace.', '/app/campaigns', 'Back to Campaigns'); } return $this->pageHeader('Edit Campaign', 'Update the campaign name, description and status.', '<a class="qrb-button" href="/app/campaigns">Campaigns</a>') . $this->metrics([['QR codes',$c->qrCount],['Dynamic',$c->dynamicCount],['Static',$c->staticCount],['Scans',$c->scanCount]]) . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_campaign', 'nonce', true, false) . '<label>Name<input name="name" value="' . esc_attr($c->name) . '" required></label><label>Description<textarea name="description">' . esc_textarea($c->description) . '</textarea></label><label>Status<select name="status"><option value="active" ' . selected($c->status, 'active', false) . '>Active</option><option value="archived" ' . selected($c->status, 'archived', false) . '>Archived</option></select></label><button class="qrb-button qrb-button-primary">Save Campaign</button></form>'; }
+    private function campaignEdit(int $id): string { $c = $this->campaigns->find($id); if (!$c) { return $this->emptyState('Campaign not found', 'That campaign could not be found in this workspace.', '/app/campaigns', 'Back to Campaigns'); } return $this->pageHeader('Edit Campaign', 'Update the campaign name, description and status.', '<a class="qrb-button" href="/app/campaigns">Campaigns</a>' . $this->analyticsExportAction('campaign', $c->id, '30days')) . $this->metrics([['QR codes',$c->qrCount],['Dynamic',$c->dynamicCount],['Static',$c->staticCount],['Scans',$c->scanCount]]) . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_campaign', 'nonce', true, false) . '<label>Name<input name="name" value="' . esc_attr($c->name) . '" required></label><label>Description<textarea name="description">' . esc_textarea($c->description) . '</textarea></label><label>Status<select name="status"><option value="active" ' . selected($c->status, 'active', false) . '>Active</option><option value="archived" ' . selected($c->status, 'archived', false) . '>Archived</option></select></label><button class="qrb-button qrb-button-primary">Save Campaign</button></form>'; }
 
     private function analytics(): string {
         $rangeKey = sanitize_key((string) ($_GET['range'] ?? '30days'));
         $range = DateRange::fromRequest($rangeKey);
         $stats = $this->analyticsRepo->dashboardStats($range);
-        $html = $this->pageHeader('Analytics', 'Understand scan activity across your QR codes.', '<form><select name="range" onchange="this.form.submit()"><option value="today" ' . selected($rangeKey, 'today', false) . '>Today</option><option value="7days" ' . selected($rangeKey, '7days', false) . '>Last 7 days</option><option value="30days" ' . selected($rangeKey, '30days', false) . '>Last 30 days</option><option value="all" ' . selected($rangeKey, 'all', false) . '>All time</option></select></form>') . $this->metrics([['Total scans',$stats['total_scans']],['Scans today',$stats['scans_today']],['Last 7 days',$stats['scans_last_7_days']],['Latest scan',$stats['latest_scan'] ?: '-']]);
-        if (!$this->entitlements->allows('advanced_analytics')) { return $html . '<section class="qrb-card"><h2>Advanced analytics</h2><p>Upgrade to Pro or Business for trend charts, top QR codes, device, browser, referrer, and recent scan breakdowns.</p></section>'; }
+        $actions = '<form><select name="range" onchange="this.form.submit()"><option value="today" ' . selected($rangeKey, 'today', false) . '>Today</option><option value="7days" ' . selected($rangeKey, '7days', false) . '>Last 7 days</option><option value="30days" ' . selected($rangeKey, '30days', false) . '>Last 30 days</option><option value="all" ' . selected($rangeKey, 'all', false) . '>All time</option></select></form>' . $this->analyticsExportAction('workspace', 0, $rangeKey);
+        $html = $this->pageHeader('Analytics', 'Understand scan activity across your QR codes.', $actions) . $this->metrics([['Total scans',$stats['total_scans']],['Scans today',$stats['scans_today']],['Last 7 days',$stats['scans_last_7_days']],['Latest scan',$stats['latest_scan'] ?: '-']]);
+        if (!$this->entitlements->allows('advanced_analytics')) { return $html . $this->premiumUpsell('Export your analytics', 'CSV exports and advanced analytics are available on Pro and Business. Take your QR Buzz data into Excel, Google Sheets or your own reporting workflow.') . '<section class="qrb-card"><h2>Advanced analytics</h2><p>Upgrade to Pro or Business for trend charts, top QR codes, device, browser, referrer, and recent scan breakdowns.</p></section>'; }
+        if (($_GET['upgrade'] ?? '') === 'csv_export') { $html .= $this->premiumUpsell('Export your analytics', 'CSV exports are available on Pro and Business plans.'); }
         return $html . $this->tip('analytics-first-visit', 'Analytics begin after a dynamic QR code receives its first scan. Static QR codes are listed in QR Buzz but do not collect scan data.') . '<section class="qrb-card"><h2>Scans over time</h2><p>See how scan activity changed during the selected period.</p>' . $this->barChart($this->analyticsRepo->scanCountsByDay($range)) . '</section><section class="qrb-card"><h2>Top-performing QR codes</h2><p>The QR codes receiving the most scans during this period.</p>' . $this->topQrTable($this->analyticsRepo->topQrCodes($range, 10)) . '</section><section class="qrb-card"><h2>Breakdowns</h2><div class="qrb-analytics-grid"><div><h3>Devices</h3>' . $this->breakdownTable($this->analyticsRepo->deviceBreakdown($range)) . '</div><div><h3>Browsers</h3>' . $this->breakdownTable($this->analyticsRepo->browserBreakdown($range)) . '</div></div></section><section class="qrb-card"><h2>Recent scans</h2>' . $this->recentScansTable($this->analyticsRepo->recentScans($range, 20)) . '</section>';
     }
 
@@ -538,14 +596,79 @@ class HostedAppController {
         return $this->settingsNav('account') . $this->pageHeader('Account settings', 'Manage your profile, email address and password.') . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_account', 'nonce', true, false) . '<label>First name<input name="first_name" autocomplete="given-name" value="' . esc_attr($u->first_name) . '"></label><label>Last name<input name="last_name" autocomplete="family-name" value="' . esc_attr($u->last_name) . '"></label><label>Email<input type="email" name="email" autocomplete="email" value="' . esc_attr($u->user_email) . '"></label><p>Email verification: ' . esc_html($p && $p->email_verified ? 'Verified' : 'Not verified') . '</p>' . $this->passwordRequirements() . '<label>New password<input type="password" name="password" autocomplete="new-password"></label><label>Confirm password<input type="password" name="password_confirm" autocomplete="new-password"></label><button class="qrb-button qrb-button-primary">Save account</button></form>';
     }
     private function workspaceSettings(): string { $w = $this->workspaces->current(); $brand = $this->brandKit->get(); return $this->settingsNav('workspace') . $this->pageHeader('Workspace and Brand Kit', 'Set the workspace identity and defaults used across QR Buzz.') . $this->tip('brand-kit-first-visit', 'Save your workspace identity once, then QR Studio can use those defaults when new QR codes are created.') . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_workspace', 'nonce', true, false) . '<fieldset><legend>Workspace</legend><label>Name<input name="name" value="' . esc_attr($w->name) . '"></label><label>Website<input name="website_url" value="' . esc_attr($w->websiteUrl) . '"></label><label>Timezone<input name="timezone" value="' . esc_attr($w->timezone ?: wp_timezone_string()) . '"></label><label>Intended use<input name="intended_use" value="' . esc_attr($w->intendedUse) . '"></label></fieldset><fieldset><legend>Brand Kit foundation</legend><label>Brand name<input name="brand_name" value="' . esc_attr((string) $brand['brand_name']) . '"></label>' . $this->colorControl('Primary colour', 'primary_color', (string) $brand['primary_color']) . $this->colorControl('Secondary colour', 'secondary_color', (string) $brand['secondary_color']) . $this->select('Default theme', 'default_theme', (string) $brand['default_theme'], $this->themeOptions()) . $this->colorControl('Default foreground', 'foreground_color', (string) $brand['foreground_color']) . $this->colorControl('Default background', 'background_color', (string) $brand['background_color']) . $this->select('Default error correction', 'default_error_correction', (string) $brand['default_error_correction'], ['L' => 'L - smallest', 'M' => 'M - balanced', 'Q' => 'Q - branded', 'H' => 'H - logo safe']) . $this->select('Default data module style', 'dot_style', (string) $brand['dot_style'], ['square' => 'Square', 'dot' => 'Dots', 'rounded' => 'Rounded']) . $this->select('Default finder style', 'finder_style', (string) $brand['finder_style'], ['square' => 'Square', 'rounded' => 'Rounded', 'circle' => 'Circle']) . $this->select('Default finder centre', 'finder_dot_style', (string) $brand['finder_dot_style'], ['square' => 'Square', 'rounded' => 'Rounded', 'dot' => 'Dot']) . $this->colorControl('Default finder colour', 'finder_color', (string) ($brand['finder_color'] ?: $brand['foreground_color'])) . $this->select('Caption font', 'caption_font_family', (string) $brand['caption_font_family'], $this->captionFontOptions()) . $this->colorControl('Caption colour', 'caption_font_color', (string) $brand['caption_font_color']) . $this->input('Caption size', 'caption_font_size', (string) $brand['caption_font_size'], 'number') . $this->input('Quiet zone / margin', 'margin', (string) $brand['margin'], 'number') . $this->input('Logo size (%)', 'logo_size', (string) $brand['logo_size'], 'number') . '<p class="qrb-help">These defaults are used when creating new QR codes. Use QR Studio\'s "Set as Brand Kit defaults" checkbox to save a design while creating a QR.</p></fieldset><button class="qrb-button qrb-button-primary">Save workspace</button></form>'; }
-    private function billingSettings(): string { $e = $this->entitlements->summary(); $sub = $e['subscription']; return $this->settingsNav('billing') . $this->pageHeader('Billing', 'Review plan status and usage limits.') . '<div class="qrb-card"><p><strong>Current plan:</strong> ' . esc_html($e['plan']['label']) . '</p><p><strong>Status:</strong> ' . esc_html($sub['status']) . '</p><p><strong>Renewal:</strong> ' . esc_html($sub['renewal_date'] ?: '-') . '</p><p class="qrb-alert">Stripe is in test-mode prototype configuration for v0.9.9. If test keys are not configured, paid plan selection runs in local prototype mode.</p><a class="qrb-button" href="/app/onboarding?step=plan">Change plan</a></div>' . $this->usageCard(); }
+    private function billingSettings(): string {
+        $summary = $this->entitlements->summary();
+        $subscription = $summary['subscription'];
+        $planKey = $summary['plan']['key'];
+        $notice = '';
+        if (($_GET['checkout'] ?? '') === 'success') {
+            $notice .= '<p class="qrb-alert qrb-alert-success">Payment received — we are activating your ' . esc_html($this->plans->label(sanitize_key((string) ($_GET['plan'] ?? 'pro')))) . ' plan. Stripe confirmation controls when paid features become available.</p>';
+        }
+        if (($_GET['checkout'] ?? '') === 'cancelled') { $notice .= '<p class="qrb-alert">Checkout was cancelled. Your current plan has not changed.</p>'; }
+        if (($subscription['status'] ?? '') === 'past_due') { $notice .= '<p class="qrb-alert">Your subscription needs attention. Update your payment method to keep your paid features active.</p>'; }
+        if (!empty($_GET['error'])) {
+            $message = sanitize_key((string) $_GET['error']) === 'portal' ? 'We could not open billing management. Please try again.' : 'We could not start checkout right now. Please try again.';
+            $notice .= '<p class="qrb-alert" role="alert">' . esc_html($message) . '</p>';
+        }
+        $status = $this->billingStatusLabel((string) ($subscription['status'] ?? 'free'));
+        $renewal = (string) ($subscription['renewal_date'] ?? '');
+        $period = $renewal !== '' ? wp_date('j F Y', strtotime($renewal)) : '';
+        $description = $this->billingPlans->plan($planKey)['description'];
+        $html = $this->settingsNav('billing') . $this->pageHeader('Billing', 'Review your plan, usage and billing options.') . $notice;
+        $html .= '<section class="qrb-card"><h2>Your plan</h2><p class="qrb-plan-name"><strong>' . esc_html($summary['plan']['label']) . '</strong></p><p>' . esc_html($description) . '</p><p><strong>Status:</strong> ' . esc_html($status) . '</p>';
+        if ($period !== '') {
+            $periodLabel = !empty($subscription['cancel_at_period_end']) ? 'Cancels on' : 'Renews on';
+            $html .= '<p><strong>' . esc_html($periodLabel) . ':</strong> ' . esc_html($period) . '</p>';
+        }
+        if (!empty($subscription['customer_id'])) {
+            $html .= '<form method="post">' . wp_nonce_field('qrbuzz_app_billing', 'nonce', true, false) . '<input type="hidden" name="billing_action" value="portal"><button class="qrb-button qrb-button-primary">Manage billing</button></form>';
+        } else {
+            $html .= '<div class="qrb-actions">' . $this->upgradeForm('pro') . $this->upgradeForm('business') . '</div>';
+        }
+        $html .= '</section>' . $this->usageCard() . '<section class="qrb-card"><h2>Compare plans</h2>' . $this->planCards(true) . '</section>';
+        return $html;
+    }
 
     private function onboarding(): string { $step = sanitize_key((string) ($_GET['step'] ?? $this->workspaces->current()->onboardingStep ?: 'plan')); if ($step === 'workspace') { $notice = !empty($_GET['billing']) ? '<p class="qrb-alert">Stripe test keys are not configured yet, so this plan has been selected in local prototype mode.</p>' : ''; return '<h1>Create workspace</h1>' . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_onboarding', 'nonce', true, false) . '<input type="hidden" name="onboarding_action" value="workspace"><label>Workspace name<input name="workspace_name" value="' . esc_attr($this->workspaces->current()->name) . '"></label><label>Website<input name="website_url" type="url"></label><label>Intended use<select name="intended_use"><option value="marketing">Marketing campaigns</option><option value="wifi">WiFi access</option><option value="events">Events</option><option value="other">Other</option></select></label><button class="qrb-button qrb-button-primary">Continue</button></form>'; } if ($step === 'first_qr') { return '<h1>Create your first QR</h1><div class="qrb-card"><div class="qrb-actions"><a class="qrb-button" href="/app/qr/new?type=dynamic_url&studio=1">Dynamic Website QR</a><a class="qrb-button" href="/app/qr/new?type=static_url&studio=1">Static Website QR</a><a class="qrb-button" href="/app/qr/new?type=wifi&studio=1">WiFi QR</a></div><form method="post">' . wp_nonce_field('qrbuzz_onboarding', 'nonce', true, false) . '<input type="hidden" name="onboarding_action" value="complete"><button class="qrb-button qrb-button-primary">Skip for now</button></form></div>'; } return '<h1>Choose plan</h1>' . (!empty($_GET['error']) ? '<p class="qrb-alert">Stripe checkout is not available. You can still choose a paid plan in local prototype mode while test keys are configured.</p>' : '') . $this->planCards(true); }
-    private function pricing(): string { return '<h1>Plans</h1>' . $this->planCards(false); }
-    private function planCards(bool $form): string { $html = '<div class="qrb-plan-grid">'; foreach ($this->plans->plans() as $key => $plan) { $features = implode(', ', array_keys(array_filter($plan['features']))); $html .= '<div class="qrb-card"><h2>' . esc_html($plan['label']) . '</h2><p>' . esc_html($features) . '</p>'; if ($form) { $button = !$this->stripe->configured() && $key !== 'free' ? 'Choose ' . $plan['label'] . ' (prototype)' : 'Choose ' . $plan['label']; $html .= '<form method="post">' . wp_nonce_field('qrbuzz_onboarding', 'nonce', true, false) . '<input type="hidden" name="onboarding_action" value="plan"><input type="hidden" name="plan_key" value="' . esc_attr($key) . '"><button class="qrb-button qrb-button-primary">' . esc_html($button) . '</button></form>'; } $html .= '</div>'; } return $html . '</div>'; }
+    private function pricing(): string {
+        return '<h1>Plans</h1><p>Start free and upgrade when you need more capacity, reporting or control.</p>' . $this->planCards(false);
+    }
+
+    private function planCards(bool $authenticated): string {
+        $html = '<div class="qrb-plan-grid">';
+        foreach ($this->billingPlans->plans() as $key => $plan) {
+            $html .= '<article class="qrb-card"><h2>' . esc_html($plan['label']) . '</h2><p><strong>' . esc_html($plan['display_price']) . '</strong>' . ($plan['interval'] ? ' / ' . esc_html($plan['interval']) : '') . '</p><p>' . esc_html($plan['description']) . '</p><ul>';
+            foreach ($plan['features'] as $feature) { $html .= '<li>' . esc_html($feature) . '</li>'; }
+            $html .= '</ul>';
+            if ($authenticated) {
+                if ($key === 'free') { $html .= '<span class="qrb-badge">Free forever</span>'; }
+                else { $html .= $this->upgradeForm($key); }
+            } else {
+                $url = $key === 'free' ? '/register' : '/register?plan=' . rawurlencode($key);
+                $label = $key === 'free' ? 'Get started free' : 'Choose ' . $plan['label'];
+                $html .= '<a class="qrb-button qrb-button-primary" href="' . esc_url($url) . '">' . esc_html($label) . '</a>';
+            }
+            $html .= '</article>';
+        }
+        return $html . '</div>';
+    }
+
+    private function upgradeForm(string $planKey): string {
+        $planKey = in_array($planKey, ['pro', 'business'], true) ? $planKey : 'pro';
+        $existing = $this->subscriptions->forWorkspace($this->workspaces->id());
+        if ($existing && !empty($existing->stripe_customer_id)) {
+            return '<form method="post">' . wp_nonce_field('qrbuzz_app_billing', 'nonce', true, false) . '<input type="hidden" name="billing_action" value="portal"><button class="qrb-button">Manage plan in Stripe</button></form>';
+        }
+        $returnTo = sanitize_key((string) ($_GET['return_to'] ?? 'billing'));
+        if (!in_array($returnTo, ['billing', 'analytics'], true)) { $returnTo = 'billing'; }
+        return '<form method="post">' . wp_nonce_field('qrbuzz_app_billing', 'nonce', true, false) . '<input type="hidden" name="billing_action" value="checkout"><input type="hidden" name="plan_key" value="' . esc_attr($planKey) . '"><input type="hidden" name="return_to" value="' . esc_attr($returnTo) . '"><button class="qrb-button qrb-button-primary">Upgrade to ' . esc_html($this->plans->label($planKey)) . '</button></form>';
+    }
 
     private function registerForm(): string {
         $notice = '';
+        $plan = sanitize_key((string) ($_GET['plan'] ?? 'free'));
+        if (!in_array($plan, ['free', 'pro', 'business'], true)) { $plan = 'free'; }
+        if ($plan !== 'free') { $notice .= '<p class="qrb-alert qrb-alert-success">Create your account first, then we will take you to Billing to upgrade to ' . esc_html($this->plans->label($plan)) . '.</p>'; }
         if (isset($_GET['error'])) {
             $error = sanitize_key((string) $_GET['error']);
             $messages = [
@@ -556,7 +679,7 @@ class HostedAppController {
             ];
             $notice = '<p class="qrb-alert" role="alert">' . esc_html($messages[$error] ?? 'We could not create your account. Please check your details and try again.') . '</p>';
         }
-        return '<h1>Create your QR Buzz account</h1>' . $notice . $this->googleButton('register') . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_register', 'nonce', true, false) . '<label>First name<input name="first_name" autocomplete="given-name" required></label><label>Last name<input name="last_name" autocomplete="family-name" required></label><label>Email<input type="email" name="email" autocomplete="email" required></label>' . $this->passwordRequirements() . '<label>Password<input type="password" name="password" autocomplete="new-password" required></label><label>Confirm password<input type="password" name="password_confirm" autocomplete="new-password" required></label><label><input type="checkbox" name="terms" value="1" required> I accept the Terms and Privacy Policy</label><button class="qrb-button qrb-button-primary">Create account</button></form>';
+        return '<h1>Create your QR Buzz account</h1>' . $notice . $this->googleButton('register') . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_register', 'nonce', true, false) . '<input type="hidden" name="plan" value="' . esc_attr($plan) . '">' . '<label>First name<input name="first_name" autocomplete="given-name" required></label><label>Last name<input name="last_name" autocomplete="family-name" required></label><label>Email<input type="email" name="email" autocomplete="email" required></label>' . $this->passwordRequirements() . '<label>Password<input type="password" name="password" autocomplete="new-password" required></label><label>Confirm password<input type="password" name="password_confirm" autocomplete="new-password" required></label><label><input type="checkbox" name="terms" value="1" required> I accept the Terms and Privacy Policy</label><button class="qrb-button qrb-button-primary">Create account</button></form>';
     }
     private function loginForm(): string {
         $googleLink = sanitize_text_field((string) ($_GET['google_link'] ?? ''));
