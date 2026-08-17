@@ -43,17 +43,17 @@ class EntitlementService {
         $resources = ['qr_assets', 'dynamic_qr_assets', 'campaigns', 'team_members', 'smart_rules_per_asset', 'analytics_retention_days'];
         $limits = []; $usage = []; $remaining = [];
         foreach ($resources as $resource) { $limits[$resource] = $this->limit($resource); $usage[$resource] = in_array($resource, ['smart_rules_per_asset', 'analytics_retention_days'], true) ? null : $this->usage($resource); $remaining[$resource] = $usage[$resource] === null ? null : $this->remaining($resource); }
-        return ['workspace' => ['id' => $workspace->id, 'name' => $workspace->name, 'plan_key' => $workspace->planKey], 'plan' => ['key' => $this->effectivePlanKey(), 'label' => $this->plans->label($this->effectivePlanKey())], 'subscription' => ['status' => $subscription ? (string) $subscription->status : 'free', 'renewal_date' => $subscription ? (string) $subscription->current_period_end : ''], 'features' => $plan['features'], 'limits' => $limits, 'usage' => $usage, 'remaining' => $remaining];
+        return ['workspace' => ['id' => $workspace->id, 'name' => $workspace->name, 'plan_key' => $workspace->planKey], 'plan' => ['key' => $this->effectivePlanKey(), 'label' => $this->plans->label($this->effectivePlanKey())], 'subscription' => ['status' => $subscription ? (string) $subscription->status : 'free', 'renewal_date' => $subscription ? (string) $subscription->current_period_end : '', 'cancel_at_period_end' => $subscription ? !empty($subscription->cancel_at_period_end) : false, 'customer_id' => $subscription ? (string) $subscription->stripe_customer_id : '', 'subscription_id' => $subscription ? (string) $subscription->stripe_subscription_id : ''], 'features' => $plan['features'], 'limits' => $limits, 'usage' => $usage, 'remaining' => $remaining];
     }
 
     private function currentPlan(): array { return $this->plans->plan($this->effectivePlanKey()); }
 
-    private function effectivePlanKey(): string {
+    public function effectivePlanKey(): string {
         $workspace = $this->workspaces->current();
         $subscription = $this->subscriptions->forWorkspace($workspace->id);
         if (!$subscription) { return $workspace->planKey; }
         $status = (string) $subscription->status;
-        if (in_array($status, ['free', 'trialing', 'active'], true)) { return (string) $subscription->plan_key; }
+        if (in_array($status, ['free', 'trialing', 'active', 'past_due'], true)) { return (string) $subscription->plan_key; }
         return 'free';
     }
 }
