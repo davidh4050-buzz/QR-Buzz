@@ -1,6 +1,7 @@
 <?php
 namespace QRBuzz\Platform;
 
+use QRBuzz\Billing\StripeService;
 use QRBuzz\Billing\SubscriptionRepository;
 use QRBuzz\Database\Schema;
 use QRBuzz\Membership\EntitlementService;
@@ -21,6 +22,7 @@ class PlatformAdminController {
     private HealthCheckService $health;
     private QRGenerator $generator;
     private QRPayloadService $payloads;
+    private StripeService $stripe;
 
     public function __construct() {
         $this->repo = new PlatformAdminRepository();
@@ -31,6 +33,7 @@ class PlatformAdminController {
         $this->flags = new FeatureFlagRepository($this->audit);
         $this->support = new SupportActionService($this->audit, null, null, null, $this->errors, $this->webhooks);
         $this->health = new HealthCheckService();
+        $this->stripe = new StripeService();
         $this->generator = new QRGenerator();
         $this->payloads = new QRPayloadService(new QRTypeRegistry(), $this->generator);
     }
@@ -80,6 +83,13 @@ class PlatformAdminController {
         if ($action === 'feature_flag') { $ok = $this->flags->set(absint($_POST['flag_id'] ?? 0), !empty($_POST['enabled']), get_current_user_id()); }
         if ($action === 'save_settings') { update_option('qrbuzz_platform_settings', $this->settingsFromPost()); $this->audit->record('administrator_action', 'Platform settings saved.', ['entity_type' => 'settings']); $ok = true; }
         if ($action === 'snapshot') { $workspaceId = absint($_POST['workspace_id'] ?? 0); $ok = $this->support->diagnosticSnapshot($workspaceId, $this->diagnosticSummary($workspaceId)); }
+        if ($action === 'sync_subscription' && $this->confirmed()) {
+            $workspaceId = absint($_POST['workspace_id'] ?? 0);
+            $subscription = (new SubscriptionRepository())->forWorkspace($workspaceId);
+            $result = $subscription && !empty($subscription->stripe_subscription_id) ? $this->stripe->syncSubscription((string) $subscription->stripe_subscription_id) : new \WP_Error('missing_subscription', 'No Stripe subscription is stored.');
+            $ok = !is_wp_error($result);
+            $this->audit->record('subscription_reconciled', $ok ? 'Administrator synchronised subscription from Stripe.' : 'Subscription synchronisation failed.', ['workspace_id' => $workspaceId, 'entity_type' => 'subscription']);
+        }
         wp_safe_redirect(add_query_arg('notice', $ok ? 'saved' : 'failed', home_url('/' . $path))); exit;
     }
 
@@ -133,8 +143,8 @@ class PlatformAdminController {
     private function subscriptions(): string {
         $status = sanitize_key((string) ($_GET['status'] ?? '')); $rows = $this->repo->subscriptions($status, $this->pageNo()); $counts = $this->repo->subscriptionCounts();
         $html = $this->header('Subscriptions', 'Inspect local subscription state and Stripe identifiers.', $this->exportLink('subscriptions')) . $this->metrics([['Active',$counts['active']],['Trialing',$counts['trialing']],['Past due',$counts['past_due']],['Incomplete',$counts['incomplete']],['Free workspaces',$counts['free_plan_workspaces']]]);
-        $html .= '<section class="qrb-card"><div class="qrb-table-wrap"><table class="qrb-table"><thead><tr><th>Workspace</th><th>User</th><th>Plan</th><th>Status</th><th>Stripe customer</th><th>Stripe subscription</th><th>Period end</th><th>Updated</th></tr></thead><tbody>';
-        foreach ($rows as $s) { $html .= '<tr><td><a href="' . esc_url(home_url('/platform-admin/workspaces/' . $s->workspace_id)) . '">' . esc_html($s->workspace_name ?: ('Workspace #' . $s->workspace_id)) . '</a></td><td>' . esc_html($s->user_email ?: '-') . '</td><td>' . esc_html($s->plan_key) . '</td><td>' . esc_html($s->status) . '</td><td>' . esc_html($this->shortId($s->stripe_customer_id)) . '</td><td>' . esc_html($this->shortId($s->stripe_subscription_id)) . '</td><td>' . esc_html($s->current_period_end ?: '-') . '</td><td>' . esc_html($s->updated_at) . '</td></tr>'; }
+        $html .= '<section class="qrb-card"><div class="qrb-table-wrap"><table class="qrb-table"><thead><tr><th>Workspace</th><th>User</th><th>Plan</th><th>Status</th><th>Stripe customer</th><th>Stripe subscription</th><th>Period end</th><th>Cancellation</th><th>Last sync</th><th>Actions</th></tr></thead><tbody>';
+        foreach ($rows as $s) { $html .= '<tr><td><a href="' . esc_url(home_url('/platform-admin/workspaces/' . $s->workspace_id)) . '">' . esc_html($s->workspace_name ?: ('Workspace #' . $s->workspace_id)) . '</a></td><td>' . esc_html($s->user_email ?: '-') . '</td><td>' . esc_html($s->plan_key) . '</td><td>' . esc_html($s->status) . '</td><td>' . esc_html($this->shortId($s->stripe_customer_id)) . '</td><td>' . esc_html($this->shortId($s->stripe_subscription_id)) . '</td><td>' . esc_html($s->current_period_end ?: '-') . '</td><td>' . esc_html(!empty($s->cancel_at_period_end) ? 'At period end' : '-') . '</td><td>' . esc_html(($s->last_synced_at ?? '') ?: $s->updated_at) . '</td><td>' . (!empty($s->stripe_subscription_id) ? $this->postButton('Sync from Stripe', 'sync_subscription', ['workspace_id' => $s->workspace_id, 'confirm_required' => 1], true) : '-') . '</td></tr>'; }
         return $html . '</tbody></table></div></section>';
     }
 
