@@ -45,6 +45,11 @@ class SubscriptionRepository {
         return $wpdb->insert(Schema::subscriptionsTable(), $row, $formats) !== false;
     }
 
+    public function forgetWebhook(string $provider, string $eventId): void {
+        global $wpdb;
+        $wpdb->delete(Schema::webhookEventsTable(), ['provider' => sanitize_key($provider), 'event_id' => sanitize_text_field($eventId)], ['%s', '%s']);
+    }
+
     public function recordWebhook(string $provider, string $eventId, string $eventType): bool {
         global $wpdb;
         $result = $wpdb->insert(Schema::webhookEventsTable(), ['provider' => sanitize_key($provider), 'event_id' => sanitize_text_field($eventId), 'event_type' => sanitize_text_field($eventType), 'processed_at' => current_time('mysql')], ['%s','%s','%s','%s']);
