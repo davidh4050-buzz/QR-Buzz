@@ -19,22 +19,30 @@ class SubscriptionRepository {
         global $wpdb;
         $now = current_time('mysql');
         $existing = $this->forWorkspace($workspaceId);
+        $previous = static function(string $field, $fallback = null) use ($existing) {
+            return $existing && property_exists($existing, $field) ? $existing->{$field} : $fallback;
+        };
         $row = [
             'workspace_id' => $workspaceId,
-            'user_id' => isset($data['user_id']) ? absint($data['user_id']) : ($existing ? (int) $existing->user_id : null),
-            'plan_key' => sanitize_key((string) ($data['plan_key'] ?? ($existing ? $existing->plan_key : 'free'))),
-            'status' => sanitize_key((string) ($data['status'] ?? ($existing ? $existing->status : 'free'))),
-            'stripe_customer_id' => isset($data['stripe_customer_id']) ? sanitize_text_field((string) $data['stripe_customer_id']) : ($existing ? $existing->stripe_customer_id : null),
-            'stripe_subscription_id' => isset($data['stripe_subscription_id']) ? sanitize_text_field((string) $data['stripe_subscription_id']) : ($existing ? $existing->stripe_subscription_id : null),
-            'stripe_checkout_session_id' => isset($data['stripe_checkout_session_id']) ? sanitize_text_field((string) $data['stripe_checkout_session_id']) : ($existing ? $existing->stripe_checkout_session_id : null),
-            'current_period_start' => $data['current_period_start'] ?? ($existing ? $existing->current_period_start : null),
-            'current_period_end' => $data['current_period_end'] ?? ($existing ? $existing->current_period_end : null),
-            'cancel_at_period_end' => !empty($data['cancel_at_period_end']) ? 1 : (int) ($existing ? $existing->cancel_at_period_end : 0),
+            'user_id' => isset($data['user_id']) ? absint($data['user_id']) : (int) $previous('user_id', 0),
+            'plan_key' => sanitize_key((string) ($data['plan_key'] ?? $previous('plan_key', 'free'))),
+            'status' => sanitize_key((string) ($data['status'] ?? $previous('status', 'free'))),
+            'stripe_customer_id' => array_key_exists('stripe_customer_id', $data) ? sanitize_text_field((string) $data['stripe_customer_id']) : $previous('stripe_customer_id'),
+            'stripe_subscription_id' => array_key_exists('stripe_subscription_id', $data) ? sanitize_text_field((string) $data['stripe_subscription_id']) : $previous('stripe_subscription_id'),
+            'stripe_checkout_session_id' => array_key_exists('stripe_checkout_session_id', $data) ? sanitize_text_field((string) $data['stripe_checkout_session_id']) : $previous('stripe_checkout_session_id'),
+            'stripe_price_id' => array_key_exists('stripe_price_id', $data) ? sanitize_text_field((string) $data['stripe_price_id']) : $previous('stripe_price_id'),
+            'billing_interval' => array_key_exists('billing_interval', $data) ? sanitize_key((string) $data['billing_interval']) : $previous('billing_interval'),
+            'current_period_start' => array_key_exists('current_period_start', $data) ? $data['current_period_start'] : $previous('current_period_start'),
+            'current_period_end' => array_key_exists('current_period_end', $data) ? $data['current_period_end'] : $previous('current_period_end'),
+            'cancel_at_period_end' => array_key_exists('cancel_at_period_end', $data) ? (!empty($data['cancel_at_period_end']) ? 1 : 0) : (int) $previous('cancel_at_period_end', 0),
+            'last_synced_at' => array_key_exists('last_synced_at', $data) ? $data['last_synced_at'] : $previous('last_synced_at'),
             'updated_at' => $now,
         ];
-        if ($existing) { return $wpdb->update(Schema::subscriptionsTable(), $row, ['workspace_id' => $workspaceId], ['%d','%d','%s','%s','%s','%s','%s','%s','%s','%d','%s'], ['%d']) !== false; }
+        $formats = ['%d','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s'];
+        if ($existing) { return $wpdb->update(Schema::subscriptionsTable(), $row, ['workspace_id' => $workspaceId], $formats, ['%d']) !== false; }
         $row['created_at'] = $now;
-        return $wpdb->insert(Schema::subscriptionsTable(), $row, ['%d','%d','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s']) !== false;
+        $formats[] = '%s';
+        return $wpdb->insert(Schema::subscriptionsTable(), $row, $formats) !== false;
     }
 
     public function recordWebhook(string $provider, string $eventId, string $eventType): bool {
