@@ -19,6 +19,7 @@ on:
       - v0.9.8-ui-ux-polish
       - v0.9.9-user-assets
       - v0.9.10-signup-onboarding
+      - v0.9.11-subscriptions-analytics-export
     tags:
       - 'v*'
 
@@ -72,6 +73,18 @@ jobs:
         run: |
           cd build
           zip -9 -r qr-buzz.zip qr-buzz
+
+      - name: Inspect release ZIP
+        shell: bash
+        run: |
+          unzip -t build/qr-buzz.zip
+          unzip -l build/qr-buzz.zip | grep -q 'qr-buzz/qr-buzz.php'
+          unzip -l build/qr-buzz.zip | grep -q 'qr-buzz/vendor/autoload.php'
+          unzip -l build/qr-buzz.zip | grep -q 'qr-buzz/src/Billing/BillingPlanRegistry.php'
+          unzip -l build/qr-buzz.zip | grep -q 'qr-buzz/src/Analytics/AnalyticsCsvExporter.php'
+          unzip -l build/qr-buzz.zip | grep -q 'qr-buzz/src/Account/GoogleAuthService.php'
+          unzip -l build/qr-buzz.zip | grep -q 'qr-buzz/src/Assets/AssetRepository.php'
+          unzip -p build/qr-buzz.zip qr-buzz/qr-buzz.php | grep -q 'Version: 0.9.11'
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
