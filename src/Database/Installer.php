@@ -2,7 +2,7 @@
 namespace QRBuzz\Database;
 
 class Installer {
-    public const DESIGN_SCHEMA_VERSION = '2026-08-12-signup-onboarding';
+    public const DESIGN_SCHEMA_VERSION = '2026-08-17-subscriptions-analytics-export';
 
     public static function activate(): void {
         self::createTables();
@@ -258,9 +258,12 @@ class Installer {
             stripe_customer_id varchar(191) NULL,
             stripe_subscription_id varchar(191) NULL,
             stripe_checkout_session_id varchar(191) NULL,
+            stripe_price_id varchar(191) NULL,
+            billing_interval varchar(20) NULL,
             current_period_start datetime NULL,
             current_period_end datetime NULL,
             cancel_at_period_end tinyint(1) NOT NULL DEFAULT 0,
+            last_synced_at datetime NULL,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
@@ -269,7 +272,9 @@ class Installer {
             KEY plan_key (plan_key),
             KEY status (status),
             KEY stripe_customer_id (stripe_customer_id),
-            KEY stripe_subscription_id (stripe_subscription_id)
+            KEY stripe_subscription_id (stripe_subscription_id),
+            KEY stripe_price_id (stripe_price_id),
+            KEY last_synced_at (last_synced_at)
         ) {$charsetCollate};");
 
         dbDelta("CREATE TABLE {$webhookEventsTable} (
