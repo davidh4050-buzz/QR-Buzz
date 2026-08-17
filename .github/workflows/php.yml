@@ -30,7 +30,16 @@ jobs:
           ${{ runner.os }}-php-
 
     - name: Install dependencies
-      run: composer install --prefer-dist --no-progress
+      env:
+        COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
+        COMPOSER_MAX_PARALLEL_HTTP: 4
+      run: |
+        for attempt in 1 2 3; do
+          composer install --prefer-dist --no-progress && exit 0
+          rm -rf vendor
+          sleep $((attempt * 5))
+        done
+        composer install --prefer-source --no-progress
 
     # Add a test script to composer.json, for instance: "test": "vendor/bin/phpunit"
     # Docs: https://getcomposer.org/doc/articles/scripts.md
