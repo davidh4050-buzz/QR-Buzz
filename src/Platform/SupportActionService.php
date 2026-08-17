@@ -48,6 +48,8 @@ class SupportActionService {
         $planKey = in_array($planKey, ['free', 'pro', 'business'], true) ? $planKey : 'free';
         $before = $this->workspaces->find($workspaceId);
         if (!$before) { return false; }
+        $subscription = $this->subscriptions->forWorkspace($workspaceId);
+        if ($subscription && (!empty($subscription->stripe_customer_id) || !empty($subscription->stripe_subscription_id))) { return false; }
         $result = $this->workspaces->updatePlan($workspaceId, $planKey);
         $this->subscriptions->upsert($workspaceId, ['plan_key' => $planKey, 'status' => $planKey === 'free' ? 'free' : 'active']);
         if ($result) { $this->audit->record('plan_changed', 'Administrator assigned a test plan.', ['workspace_id' => $workspaceId, 'entity_type' => 'workspace', 'entity_id' => $workspaceId, 'before' => ['plan_key' => $before->planKey], 'after' => ['plan_key' => $planKey]]); }
