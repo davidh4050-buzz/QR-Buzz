@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.11
+- Added Stripe Checkout subscriptions for Pro and Business with existing-customer reuse
+- Added Stripe Customer Portal billing management and plan changes
+- Added Stripe Price-to-QR Buzz plan mapping and webhook-authoritative entitlement changes
+- Added renewal, cancellation-pending, payment-issue and past-due grace presentation
+- Added secure workspace, campaign and per-QR analytics CSV exports for Pro and Business
+- Added analytics retention bounding, streamed CSV generation and spreadsheet formula-injection protection
+- Added contextual premium upgrade prompts and signup plan intent
+- Added Stripe configuration diagnostics and safe platform subscription reconciliation
+- Protected genuine Stripe subscriptions from platform test-plan overrides
+- Preserved workspaces and customer content through downgrades and cancellation
+
 ## 0.9.10
 - Redesigned QR Buzz registration and login experience
 - Added Google OpenID Connect authentication and provider-based identity records
