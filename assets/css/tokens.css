@@ -1,0 +1,72 @@
+.qrb-body {
+    --qrb-primary: #217a9b;
+    --qrb-primary-hover: #1a6480;
+    --qrb-primary-active: #15536b;
+    --qrb-accent: #f2a100;
+    --qrb-accent-warm: #f2a100;
+    --qrb-bg: #d0d7dc;
+    --qrb-surface: #ffffff;
+    --qrb-surface-elevated: #ffffff;
+    --qrb-sidebar: #d0d7dc;
+    --qrb-border: #dde5e8;
+    --qrb-border-strong: #bdc9cf;
+    --qrb-text: #18212b;
+    --qrb-muted: #60707f;
+    --qrb-subtle: #84919d;
+    --qrb-success: #219b8b;
+    --qrb-warning: #b77900;
+    --qrb-danger: #b91c1c;
+    --qrb-info: #1d4ed8;
+    --qrb-focus: #2cc4b2;
+    --qrb-chart-1: #219b8b;
+    --qrb-chart-2: #f2a100;
+    --qrb-chart-3: #8aa4ad;
+    --qrb-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --qrb-font-size-xs: 0.75rem;
+    --qrb-font-size-sm: 0.875rem;
+    --qrb-font-size-base: 1rem;
+    --qrb-font-size-lg: 1.125rem;
+    --qrb-font-size-xl: 1.375rem;
+    --qrb-font-size-2xl: 1.75rem;
+    --qrb-line-tight: 1.2;
+    --qrb-line-base: 1.55;
+    --qrb-weight-regular: 400;
+    --qrb-weight-medium: 600;
+    --qrb-weight-bold: 700;
+    --qrb-space-1: 0.25rem;
+    --qrb-space-2: 0.5rem;
+    --qrb-space-3: 0.75rem;
+    --qrb-space-4: 1rem;
+    --qrb-space-5: 1.5rem;
+    --qrb-space-6: 2rem;
+    --qrb-space-7: 3rem;
+    --qrb-space-8: 4rem;
+    --qrb-radius-sm: 4px;
+    --qrb-radius: 8px;
+    --qrb-radius-lg: 14px;
+    --qrb-radius-pill: 999px;
+    --qrb-shadow-subtle: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --qrb-shadow-card: 0 8px 24px rgba(15, 23, 42, 0.08);
+    --qrb-shadow-raised: 0 18px 48px rgba(15, 23, 42, 0.18);
+    --qrb-sidebar-width: 260px;
+    --qrb-topbar-height: 68px;
+    --qrb-page-max: 1180px;
+    --qrb-gutter: clamp(1rem, 2vw, 2rem);
+    --qrb-motion-fast: 120ms;
+    --qrb-motion-standard: 180ms;
+    --qrb-motion-slow: 240ms;
+    --qrb-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --qrb-ease-emphasised: cubic-bezier(0.2, 0, 0, 1.2);
+    --qrb-transition-fast: var(--qrb-motion-fast) var(--qrb-ease-standard);
+    --qrb-transition: var(--qrb-motion-standard) var(--qrb-ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .qrb-body {
+        --qrb-motion-fast: 0ms;
+        --qrb-motion-standard: 0ms;
+        --qrb-motion-slow: 0ms;
+        --qrb-transition-fast: 0ms linear;
+        --qrb-transition: 0ms linear;
+    }
+}

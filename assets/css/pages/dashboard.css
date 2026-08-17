@@ -1,0 +1,55 @@
+.qrb-hero {
+    background: linear-gradient(135deg, #ffffff 0%, #eefcf8 72%, #fff7ed 100%);
+    overflow: hidden;
+    position: relative;
+}
+
+.qrb-hero h1 {
+    font-size: var(--qrb-font-size-2xl);
+    margin: 0 0 var(--qrb-space-2);
+}
+
+.qrb-checklist {
+    display: grid;
+    gap: var(--qrb-space-2);
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.qrb-activity-list {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.qrb-activity-list li {
+    border-bottom: 1px solid var(--qrb-border);
+    display: flex;
+    justify-content: space-between;
+    gap: var(--qrb-space-3);
+    list-style: none;
+    padding: var(--qrb-space-3) 0 var(--qrb-space-3) var(--qrb-space-5);
+    position: relative;
+}
+
+.qrb-activity-list li::before {
+    background: var(--qrb-primary);
+    border: 3px solid #ecfdf5;
+    border-radius: 50%;
+    content: "";
+    height: 10px;
+    left: 0;
+    position: absolute;
+    top: 1rem;
+    width: 10px;
+}
+
+.qrb-activity-list li:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.qrb-dashboard-grid .qrb-card {
+    min-width: 0;
+}
