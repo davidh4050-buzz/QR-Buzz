@@ -2,7 +2,7 @@
 
 QR Buzz is an open-core WordPress plugin for QR code management, branded QR design, user asset libraries, campaigns, smart destinations, hosted accounts, subscriptions, dynamic QR tracking, static QR types, and privacy-conscious scan analytics.
 
-v0.9.10 is the Signup & Onboarding release. It sends every new Free account directly into the real QR Studio, adds standards-based Google OpenID Connect authentication and safe identity linking, and migrates legacy onboarding states without changing existing workspaces, plans, QR codes, analytics, or Asset Library data.
+v0.9.11 is the Subscriptions, Plans & Analytics Export release. It adds webhook-authoritative Stripe subscriptions, Customer Portal billing management, and secure Pro/Business CSV analytics exports while preserving the v0.9.10 signup and onboarding foundation.
 
 ## Dynamic vs Static QR Codes
 
@@ -30,6 +30,14 @@ Do not install GitHub's automatic source-code ZIP from the green Code button. Th
 If you download a GitHub Actions artifact, unzip that download first. The artifact contains the actual WordPress plugin file named `qr-buzz.zip`; upload that inner ZIP to WordPress.
 
 If WordPress shows "The link you followed has expired" while uploading, the server upload limit is too small or the request timed out. Either increase `upload_max_filesize` and `post_max_size`, or upload the extracted `qr-buzz` folder directly to `wp-content/plugins/` with FTP or your hosting file manager.
+
+## Features in v0.9.11
+
+- Added Stripe Checkout and Customer Portal billing management
+- Added webhook-authoritative Price-to-plan subscription lifecycle handling
+- Added workspace, campaign and per-QR CSV analytics export for Pro and Business
+- Added retention bounding, workspace authorization and formula-injection protection
+- Added contextual upgrade prompts, diagnostics and subscription reconciliation
 
 ## Features in v0.9.10
 
