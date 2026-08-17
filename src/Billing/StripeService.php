@@ -82,13 +82,16 @@ class StripeService {
         if (!$id || !$this->subscriptions->recordWebhook('stripe', $id, $type)) { return true; }
         try {
             if ($type === 'checkout.session.completed') { $this->handleCheckout($object); }
-            if (str_starts_with($type, 'customer.subscription.')) { $this->handleSubscription($object); }
+            if (str_starts_with($type, 'customer.subscription.')) {
+                $result = $this->applySubscription($object);
+                if (is_wp_error($result)) { throw new \RuntimeException($result->get_error_message()); }
+            }
             if ($type === 'invoice.payment_failed') { $this->handleInvoiceState($object, 'past_due'); }
             if ($type === 'invoice.paid') { $this->handleInvoiceState($object, 'active'); }
             $this->webhookLogs->processed('stripe', $id, 'processed');
         } catch (\Throwable $exception) {
-            $this->webhookLogs->processed('stripe', $id, 'failed', $exception->getMessage());
-            throw $exception;
+            $this->webhookLogs->processed('stripe', $id, 'failed', sanitize_text_field($exception->getMessage()));
+            return new \WP_Error('stripe_event_failed', 'The Stripe event could not be applied.');
         }
         return true;
     }
