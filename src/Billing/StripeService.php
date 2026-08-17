@@ -48,6 +48,9 @@ class StripeService {
             'line_items[0][quantity]' => 1,
         ];
         $existing = $this->subscriptions->forWorkspace($workspaceId);
+        if ($existing && !empty($existing->stripe_subscription_id) && in_array((string) $existing->status, ['active', 'trialing', 'past_due'], true)) {
+            return new \WP_Error('existing_subscription', 'Manage the existing subscription through the billing portal.');
+        }
         if ($existing && !empty($existing->stripe_customer_id)) { $body['customer'] = (string) $existing->stripe_customer_id; }
         else { $body['customer_email'] = (string) $user->user_email; }
         $data = $this->apiRequest('POST', '/v1/checkout/sessions', $body);
@@ -90,6 +93,7 @@ class StripeService {
             if ($type === 'invoice.paid') { $this->handleInvoiceState($object, 'active'); }
             $this->webhookLogs->processed('stripe', $id, 'processed');
         } catch (\Throwable $exception) {
+            $this->subscriptions->forgetWebhook('stripe', $id);
             $this->webhookLogs->processed('stripe', $id, 'failed', sanitize_text_field($exception->getMessage()));
             return new \WP_Error('stripe_event_failed', 'The Stripe event could not be applied.');
         }
