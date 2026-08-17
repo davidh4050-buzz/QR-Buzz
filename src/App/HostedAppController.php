@@ -144,7 +144,11 @@ class HostedAppController {
             $key = (string) ($_POST['key'] ?? '');
             $login = rawurldecode((string) ($_POST['login'] ?? ''));
             $user = check_password_reset_key($key, $login);
-            if (is_wp_error($user) || empty($_POST['password']) || $_POST['password'] !== ($_POST['password_confirm'] ?? '') || !$this->auth->strongPassword((string) $_POST['password'])) { $this->redirect('/forgot-password?action=reset&error=reset&key=' . rawurlencode($key) . '&login=' . rawurlencode($login)); }
+            $resetUrl = '/forgot-password?action=reset&key=' . rawurlencode($key) . '&login=' . rawurlencode($login);
+            if (is_wp_error($user)) { $this->redirect($resetUrl . '&error=link'); }
+            if (empty($_POST['password'])) { $this->redirect($resetUrl . '&error=required'); }
+            if ($_POST['password'] !== ($_POST['password_confirm'] ?? '')) { $this->redirect($resetUrl . '&error=mismatch'); }
+            if (!$this->auth->strongPassword((string) $_POST['password'])) { $this->redirect($resetUrl . '&error=weak'); }
             reset_password($user, (string) $_POST['password']);
             $this->redirect('/login?reset=1');
         }
@@ -266,7 +270,12 @@ class HostedAppController {
         $result = wp_update_user(['ID' => $userId, 'user_email' => $email, 'first_name' => sanitize_text_field((string) ($_POST['first_name'] ?? '')), 'last_name' => sanitize_text_field((string) ($_POST['last_name'] ?? ''))]);
         if (is_wp_error($result)) { $this->redirect('/app/settings/account?error=save'); }
         if ($emailChanged) { $this->profiles->markEmailUnverified($userId); $this->auth->sendVerification($userId); }
-        if (!empty($_POST['password'])) { if ($_POST['password'] !== ($_POST['password_confirm'] ?? '') || !$this->auth->strongPassword((string) $_POST['password'])) { $this->redirect('/app/settings/account?error=password'); } wp_set_password((string) $_POST['password'], $userId); wp_set_auth_cookie($userId); }
+        if (!empty($_POST['password'])) {
+            if ($_POST['password'] !== ($_POST['password_confirm'] ?? '')) { $this->redirect('/app/settings/account?error=password_mismatch'); }
+            if (!$this->auth->strongPassword((string) $_POST['password'])) { $this->redirect('/app/settings/account?error=weak_password'); }
+            wp_set_password((string) $_POST['password'], $userId);
+            wp_set_auth_cookie($userId);
+        }
         $this->redirect('/app/settings/account?saved=1' . ($emailChanged ? '&verify=1' : ''));
     }
 
@@ -298,10 +307,11 @@ class HostedAppController {
         $scans = $summary['recent_scans'];
         $hasData = (int) $summary['total_qr_codes'] > 0;
         $html = '<section class="qrb-hero"><div class="qrb-page-header"><div><h1>' . esc_html($this->greeting()) . ', ' . esc_html(wp_get_current_user()->first_name ?: 'there') . '</h1><p>Print once. Change destinations, monitor scans, and keep every QR experience tidy.</p></div><div class="qrb-actions"><span class="qrb-badge">' . esc_html($entitlements['plan']['label']) . '</span><a class="qrb-button qrb-button-primary" href="/app/qr/new">New QR</a><a class="qrb-button" href="/app/campaigns">New Campaign</a></div></div></section>';
-        $html .= $this->metrics([['Total scans', $summary['total_scans'], 'All tracked QR scans'], ['Active QR codes', $summary['total_qr_codes'], 'Across dynamic and static assets'], ['Active campaigns', count($this->campaigns->active()), 'Campaign groups'], ['Last scan', $summary['latest_scan'] ?: '-', 'Most recent activity']]);
+        $metrics = $this->metrics([['Total scans', $summary['total_scans'], 'All tracked QR scans'], ['Active QR codes', $summary['total_qr_codes'], 'Across dynamic and static assets'], ['Active campaigns', count($this->campaigns->active()), 'Campaign groups'], ['Last scan', $summary['latest_scan'] ?: '-', 'Most recent activity']]);
         if (!$hasData) {
-            return $html . $this->tip('dashboard-first-qr', 'Your first insight starts here. Create a dynamic QR, scan it once, and QR Buzz will start building useful analytics.') . $this->emptyState('Create your first QR code', 'Start with a website, WiFi, business card or another QR type. Analytics and insights will appear once your QR codes are scanned.', '/app/qr/new', 'Create QR') . '<section class="qrb-card"><h2>Getting started</h2><ol class="qrb-checklist"><li>Create your first QR code</li><li>Add it to a campaign</li><li>Scan it from your phone</li><li>View your first insight</li></ol></section>';
+            return $html . $this->emptyState('Create your first QR code', 'Start with a website, WiFi, business card or another QR type. Analytics and insights will appear once your QR codes are scanned.', '/app/qr/new', 'Create QR') . '<section class="qrb-card"><h2>Getting started</h2><ol class="qrb-checklist"><li>Create your first QR code</li><li>Add it to a campaign</li><li>Scan it from your phone</li><li>View your first insight</li></ol></section>' . $metrics . $this->tip('dashboard-first-qr', 'Your first insight starts here. Create a dynamic QR, scan it once, and QR Buzz will start building useful analytics.');
         }
+        $html .= $metrics;
         $html .= '<section class="qrb-card"><h2>Quick actions</h2><div class="qrb-quick-actions"><a class="qrb-action-card" href="/app/library"><strong>QR Library</strong><span>Review, filter and download your QR codes.</span></a><a class="qrb-action-card" href="/app/qr/new?type=dynamic_url&studio=1"><strong>Dynamic QR</strong><span>Track scans and change destinations later.</span></a><a class="qrb-action-card" href="/app/qr/new?type=wifi&studio=1"><strong>WiFi QR</strong><span>Create a scannable network access code.</span></a><a class="qrb-action-card" href="/app/qr/new?type=vcard&studio=1"><strong>Business Card</strong><span>Share contact details in a clean vCard.</span></a><a class="qrb-action-card" href="/app/campaigns"><strong>Campaign</strong><span>Group related QR codes for reporting.</span></a></div></section>';
         $html .= '<div class="qrb-dashboard-grid"><section class="qrb-card"><h2>Recent QR codes</h2>' . $this->recentQrList($recent) . '</section><section class="qrb-card"><h2>Recent scan activity</h2>' . $this->recentScanList($scans) . '</section></div>';
         return $html . $this->usageCard();
@@ -503,7 +513,30 @@ class HostedAppController {
         return $html . $this->tip('analytics-first-visit', 'Analytics begin after a dynamic QR code receives its first scan. Static QR codes are listed in QR Buzz but do not collect scan data.') . '<section class="qrb-card"><h2>Scans over time</h2><p>See how scan activity changed during the selected period.</p>' . $this->barChart($this->analyticsRepo->scanCountsByDay($range)) . '</section><section class="qrb-card"><h2>Top-performing QR codes</h2><p>The QR codes receiving the most scans during this period.</p>' . $this->topQrTable($this->analyticsRepo->topQrCodes($range, 10)) . '</section><section class="qrb-card"><h2>Breakdowns</h2><div class="qrb-analytics-grid"><div><h3>Devices</h3>' . $this->breakdownTable($this->analyticsRepo->deviceBreakdown($range)) . '</div><div><h3>Browsers</h3>' . $this->breakdownTable($this->analyticsRepo->browserBreakdown($range)) . '</div></div></section><section class="qrb-card"><h2>Recent scans</h2>' . $this->recentScansTable($this->analyticsRepo->recentScans($range, 20)) . '</section>';
     }
 
-    private function accountSettings(): string { $u = wp_get_current_user(); $p = $this->profiles->profile($u->ID); $notice = !empty($_GET['verify']) ? '<p class="qrb-alert">We sent a verification email to your new address.</p>' : ''; return $this->settingsNav('account') . $this->pageHeader('Account settings', 'Manage your profile, email address and password.') . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_account', 'nonce', true, false) . '<label>First name<input name="first_name" value="' . esc_attr($u->first_name) . '"></label><label>Last name<input name="last_name" value="' . esc_attr($u->last_name) . '"></label><label>Email<input type="email" name="email" value="' . esc_attr($u->user_email) . '"></label><p>Email verification: ' . esc_html($p && $p->email_verified ? 'Verified' : 'Not verified') . '</p><label>New password<input type="password" name="password"></label><label>Confirm password<input type="password" name="password_confirm"></label><button class="qrb-button qrb-button-primary">Save account</button></form>'; }
+    private function accountSettings(): string {
+        $u = wp_get_current_user();
+        $p = $this->profiles->profile($u->ID);
+        $notice = '';
+        if (!empty($_GET['saved'])) { $notice .= '<p class="qrb-alert qrb-alert-success">Your account details have been saved.</p>'; }
+        if (!empty($_GET['verify'])) {
+            $verify = sanitize_key((string) $_GET['verify']);
+            $notice .= $verify === 'rate'
+                ? '<p class="qrb-alert" role="alert">A verification email was sent recently. Please wait a few minutes before requesting another.</p>'
+                : '<p class="qrb-alert qrb-alert-success">We sent a verification email to your new address.</p>';
+        }
+        if (isset($_GET['error'])) {
+            $error = sanitize_key((string) $_GET['error']);
+            $messages = [
+                'email' => 'Enter a valid email address.',
+                'email_taken' => 'That email address is already used by another account.',
+                'save' => 'We could not save your account details. Please try again.',
+                'password_mismatch' => 'The new passwords do not match. Enter the same password in both fields.',
+                'weak_password' => 'Your new password does not meet the requirements below.',
+            ];
+            $notice .= '<p class="qrb-alert" role="alert">' . esc_html($messages[$error] ?? 'We could not save your account details. Please check the form and try again.') . '</p>';
+        }
+        return $this->settingsNav('account') . $this->pageHeader('Account settings', 'Manage your profile, email address and password.') . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_account', 'nonce', true, false) . '<label>First name<input name="first_name" autocomplete="given-name" value="' . esc_attr($u->first_name) . '"></label><label>Last name<input name="last_name" autocomplete="family-name" value="' . esc_attr($u->last_name) . '"></label><label>Email<input type="email" name="email" autocomplete="email" value="' . esc_attr($u->user_email) . '"></label><p>Email verification: ' . esc_html($p && $p->email_verified ? 'Verified' : 'Not verified') . '</p>' . $this->passwordRequirements() . '<label>New password<input type="password" name="password" autocomplete="new-password"></label><label>Confirm password<input type="password" name="password_confirm" autocomplete="new-password"></label><button class="qrb-button qrb-button-primary">Save account</button></form>';
+    }
     private function workspaceSettings(): string { $w = $this->workspaces->current(); $brand = $this->brandKit->get(); return $this->settingsNav('workspace') . $this->pageHeader('Workspace and Brand Kit', 'Set the workspace identity and defaults used across QR Buzz.') . $this->tip('brand-kit-first-visit', 'Save your workspace identity once, then QR Studio can use those defaults when new QR codes are created.') . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_app_workspace', 'nonce', true, false) . '<fieldset><legend>Workspace</legend><label>Name<input name="name" value="' . esc_attr($w->name) . '"></label><label>Website<input name="website_url" value="' . esc_attr($w->websiteUrl) . '"></label><label>Timezone<input name="timezone" value="' . esc_attr($w->timezone ?: wp_timezone_string()) . '"></label><label>Intended use<input name="intended_use" value="' . esc_attr($w->intendedUse) . '"></label></fieldset><fieldset><legend>Brand Kit foundation</legend><label>Brand name<input name="brand_name" value="' . esc_attr((string) $brand['brand_name']) . '"></label>' . $this->colorControl('Primary colour', 'primary_color', (string) $brand['primary_color']) . $this->colorControl('Secondary colour', 'secondary_color', (string) $brand['secondary_color']) . $this->select('Default theme', 'default_theme', (string) $brand['default_theme'], $this->themeOptions()) . $this->colorControl('Default foreground', 'foreground_color', (string) $brand['foreground_color']) . $this->colorControl('Default background', 'background_color', (string) $brand['background_color']) . $this->select('Default error correction', 'default_error_correction', (string) $brand['default_error_correction'], ['L' => 'L - smallest', 'M' => 'M - balanced', 'Q' => 'Q - branded', 'H' => 'H - logo safe']) . $this->select('Default data module style', 'dot_style', (string) $brand['dot_style'], ['square' => 'Square', 'dot' => 'Dots', 'rounded' => 'Rounded']) . $this->select('Default finder style', 'finder_style', (string) $brand['finder_style'], ['square' => 'Square', 'rounded' => 'Rounded', 'circle' => 'Circle']) . $this->select('Default finder centre', 'finder_dot_style', (string) $brand['finder_dot_style'], ['square' => 'Square', 'rounded' => 'Rounded', 'dot' => 'Dot']) . $this->colorControl('Default finder colour', 'finder_color', (string) ($brand['finder_color'] ?: $brand['foreground_color'])) . $this->select('Caption font', 'caption_font_family', (string) $brand['caption_font_family'], $this->captionFontOptions()) . $this->colorControl('Caption colour', 'caption_font_color', (string) $brand['caption_font_color']) . $this->input('Caption size', 'caption_font_size', (string) $brand['caption_font_size'], 'number') . $this->input('Quiet zone / margin', 'margin', (string) $brand['margin'], 'number') . $this->input('Logo size (%)', 'logo_size', (string) $brand['logo_size'], 'number') . '<p class="qrb-help">These defaults are used when creating new QR codes. Use QR Studio\'s "Set as Brand Kit defaults" checkbox to save a design while creating a QR.</p></fieldset><button class="qrb-button qrb-button-primary">Save workspace</button></form>'; }
     private function billingSettings(): string { $e = $this->entitlements->summary(); $sub = $e['subscription']; return $this->settingsNav('billing') . $this->pageHeader('Billing', 'Review plan status and usage limits.') . '<div class="qrb-card"><p><strong>Current plan:</strong> ' . esc_html($e['plan']['label']) . '</p><p><strong>Status:</strong> ' . esc_html($sub['status']) . '</p><p><strong>Renewal:</strong> ' . esc_html($sub['renewal_date'] ?: '-') . '</p><p class="qrb-alert">Stripe is in test-mode prototype configuration for v0.9.9. If test keys are not configured, paid plan selection runs in local prototype mode.</p><a class="qrb-button" href="/app/onboarding?step=plan">Change plan</a></div>' . $this->usageCard(); }
 
@@ -511,7 +544,20 @@ class HostedAppController {
     private function pricing(): string { return '<h1>Plans</h1>' . $this->planCards(false); }
     private function planCards(bool $form): string { $html = '<div class="qrb-plan-grid">'; foreach ($this->plans->plans() as $key => $plan) { $features = implode(', ', array_keys(array_filter($plan['features']))); $html .= '<div class="qrb-card"><h2>' . esc_html($plan['label']) . '</h2><p>' . esc_html($features) . '</p>'; if ($form) { $button = !$this->stripe->configured() && $key !== 'free' ? 'Choose ' . $plan['label'] . ' (prototype)' : 'Choose ' . $plan['label']; $html .= '<form method="post">' . wp_nonce_field('qrbuzz_onboarding', 'nonce', true, false) . '<input type="hidden" name="onboarding_action" value="plan"><input type="hidden" name="plan_key" value="' . esc_attr($key) . '"><button class="qrb-button qrb-button-primary">' . esc_html($button) . '</button></form>'; } $html .= '</div>'; } return $html . '</div>'; }
 
-    private function registerForm(): string { return '<h1>Create your QR Buzz account</h1>' . $this->googleButton('register') . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_register', 'nonce', true, false) . '<label>First name<input name="first_name" required></label><label>Last name<input name="last_name" required></label><label>Email<input type="email" name="email" required></label><label>Password<input type="password" name="password" required></label><label>Confirm password<input type="password" name="password_confirm" required></label><label><input type="checkbox" name="terms" value="1" required> I accept the Terms and Privacy Policy</label><button class="qrb-button qrb-button-primary">Create account</button></form>'; }
+    private function registerForm(): string {
+        $notice = '';
+        if (isset($_GET['error'])) {
+            $error = sanitize_key((string) $_GET['error']);
+            $messages = [
+                'rate' => 'Too many registration attempts. Please wait a few minutes and try again.',
+                'weak_password' => 'Your password does not meet the requirements below.',
+                'registration_failed' => 'We could not create your account. Check that every field is complete, the passwords match, and you have accepted the Terms and Privacy Policy.',
+                'google_collision' => 'An account already uses that email address. Log in to link your Google account.',
+            ];
+            $notice = '<p class="qrb-alert" role="alert">' . esc_html($messages[$error] ?? 'We could not create your account. Please check your details and try again.') . '</p>';
+        }
+        return '<h1>Create your QR Buzz account</h1>' . $notice . $this->googleButton('register') . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_register', 'nonce', true, false) . '<label>First name<input name="first_name" autocomplete="given-name" required></label><label>Last name<input name="last_name" autocomplete="family-name" required></label><label>Email<input type="email" name="email" autocomplete="email" required></label>' . $this->passwordRequirements() . '<label>Password<input type="password" name="password" autocomplete="new-password" required></label><label>Confirm password<input type="password" name="password_confirm" autocomplete="new-password" required></label><label><input type="checkbox" name="terms" value="1" required> I accept the Terms and Privacy Policy</label><button class="qrb-button qrb-button-primary">Create account</button></form>';
+    }
     private function loginForm(): string {
         $googleLink = sanitize_text_field((string) ($_GET['google_link'] ?? ''));
         $notice = '';
@@ -527,12 +573,26 @@ class HostedAppController {
     }
     private function passwordPage(): string {
         if (($_GET['action'] ?? '') === 'reset') {
-            $notice = !empty($_GET['error']) ? '<p class="qrb-alert">That reset link could not be used, or the new password did not meet the requirements. Please try again.</p>' : '';
-            return '<h1>Reset password</h1>' . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_password_reset', 'nonce', true, false) . '<input type="hidden" name="mode" value="reset"><input type="hidden" name="key" value="' . esc_attr((string) ($_GET['key'] ?? '')) . '"><input type="hidden" name="login" value="' . esc_attr(rawurldecode((string) ($_GET['login'] ?? ''))) . '"><p class="qrb-help">Use 10 or more characters with an uppercase letter, lowercase letter and number.</p><label>New password<input type="password" name="password"></label><label>Confirm password<input type="password" name="password_confirm"></label><button class="qrb-button qrb-button-primary">Reset password</button></form>';
+            $notice = '';
+            if (isset($_GET['error'])) {
+                $error = sanitize_key((string) $_GET['error']);
+                $messages = [
+                    'link' => 'This password reset link is invalid or has expired. Request a new link and try again.',
+                    'required' => 'Enter and confirm your new password.',
+                    'mismatch' => 'The passwords do not match. Enter the same password in both fields.',
+                    'weak' => 'Your new password does not meet the requirements below.',
+                ];
+                $notice = '<p class="qrb-alert" role="alert">' . esc_html($messages[$error] ?? 'We could not reset your password. Check the details below and try again.') . '</p>';
+            }
+            return '<h1>Reset password</h1>' . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_password_reset', 'nonce', true, false) . '<input type="hidden" name="mode" value="reset"><input type="hidden" name="key" value="' . esc_attr((string) ($_GET['key'] ?? '')) . '"><input type="hidden" name="login" value="' . esc_attr(rawurldecode((string) ($_GET['login'] ?? ''))) . '">' . $this->passwordRequirements() . '<label>New password<input type="password" name="password" autocomplete="new-password" required></label><label>Confirm password<input type="password" name="password_confirm" autocomplete="new-password" required></label><button class="qrb-button qrb-button-primary">Reset password</button></form>';
         }
         $notice = !empty($_GET['sent']) ? '<p class="qrb-alert qrb-alert-success">If that account exists, a password reset email is on its way.</p>' : '';
-        if (!empty($_GET['error'])) { $notice .= '<p class="qrb-alert">Please check the reset link and password requirements, then try again.</p>'; }
-        return '<h1>Forgot password</h1>' . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_password_request', 'nonce', true, false) . '<input type="hidden" name="mode" value="request"><label>Email or username<input name="login" required></label><button class="qrb-button qrb-button-primary">Send reset link</button></form>';
+        if (!empty($_GET['error'])) { $notice .= '<p class="qrb-alert" role="alert">We could not send the reset email. Check the email address or username and try again.</p>'; }
+        return '<h1>Forgot password</h1>' . $notice . '<form class="qrb-card qrb-form" method="post">' . wp_nonce_field('qrbuzz_password_request', 'nonce', true, false) . '<input type="hidden" name="mode" value="request"><label>Email or username<input name="login" autocomplete="username" required></label><button class="qrb-button qrb-button-primary">Send reset link</button></form>';
+    }
+
+    private function passwordRequirements(): string {
+        return '<p class="qrb-help">Password requirements: at least 10 characters, including one uppercase letter, one lowercase letter and one number.</p>';
     }
 
     private function verifyEmail(): void { $userId = absint($_GET['user'] ?? 0); $token = (string) ($_GET['token'] ?? ''); $ok = $userId && $token && $this->profiles->verifyByToken($userId, $token); $this->page('Verify email', '<h1>' . ($ok ? 'Email verified' : 'Verification failed') . '</h1><p><a class="qrb-button" href="/app/dashboard">Continue</a></p>'); }
