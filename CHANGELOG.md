@@ -1,6 +1,8 @@
 # Changelog
 
 ## 0.9.11
+- Fixed hosted PNG and SVG download routing for customer accounts
+- Improved mobile QR details URL wrapping and placed QR Studio preview above the editor
 - Enabled full core QR visual styling for Free accounts
 - Refined branding entitlements to separate QR styling from premium Brand Kit and logo features
 - Added consistent premium gating for logo embedding while preserving existing branded QR codes
