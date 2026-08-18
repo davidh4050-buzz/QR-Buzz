@@ -75,6 +75,7 @@
     }
 
     .qrb-studio-preview {
+        order: -1;
         position: static;
     }
 
