@@ -17,6 +17,17 @@
     margin-top: 0;
 }
 
+.qrb-card > *,
+.qrb-detail > * {
+    min-width: 0;
+}
+
+.qrb-card p,
+.qrb-card code {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
 .qrb-detail {
     display: grid;
     gap: var(--qrb-space-5);
