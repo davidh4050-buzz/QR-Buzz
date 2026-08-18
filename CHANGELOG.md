@@ -1,7 +1,7 @@
 # Changelog
 
 ## 0.9.11
-- Fixed hosted PNG and SVG download routing for customer accounts
+- Fixed hosted PNG and SVG downloads by allowing their authenticated WordPress actions through the customer admin guard
 - Improved mobile QR details URL wrapping and placed QR Studio preview above the editor
 - Enabled full core QR visual styling for Free accounts
 - Refined branding entitlements to separate QR styling from premium Brand Kit and logo features
