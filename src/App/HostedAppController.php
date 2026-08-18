@@ -287,6 +287,7 @@ class HostedAppController {
 
     private function postBilling(): void {
         check_admin_referer('qrbuzz_app_billing', 'nonce');
+        if (!$this->workspaces->isOwner()) { $this->redirect('/app/settings/billing?error=permission'); }
         $workspaceId = $this->workspaces->id();
         $action = sanitize_key((string) ($_POST['billing_action'] ?? ''));
         if ($action === 'checkout') {
