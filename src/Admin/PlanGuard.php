@@ -73,6 +73,10 @@ class PlanGuard {
             $_POST['caption_font_color'] = '#000000';
         }
 
+        if (!$this->entitlements->allows('brand_kit')) {
+            unset($_POST['apply_brand_kit']);
+        }
+
         if (!$this->entitlements->allows('logo_embedding')) {
             if (absint($_POST['qr_id'] ?? 0) > 0) {
                 unset($_POST['logo_attachment_id'], $_POST['logo_asset_id'], $_POST['logo_size']);
@@ -81,7 +85,6 @@ class PlanGuard {
                 $_POST['logo_asset_id'] = '0';
                 $_POST['logo_size'] = '20';
             }
-            unset($_POST['apply_brand_kit']);
         }
     }
 
