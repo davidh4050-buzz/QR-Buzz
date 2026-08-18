@@ -114,6 +114,6 @@ class AnalyticsCsvExporter {
 
     public function safeCell($value): string {
         $value = (string) $value;
-        return $value !== '' && preg_match('/^[=+\-@]/', $value) ? "'" . $value : $value;
+        return $value !== '' && preg_match('/^[\x00-\x20]*[=+\-@]/', $value) ? "'" . $value : $value;
     }
 }
