@@ -21,7 +21,10 @@ class PlanGuard {
         $action = isset($_REQUEST['qrbuzz_action']) ? sanitize_key(wp_unslash($_REQUEST['qrbuzz_action'])) : '';
 
         if ($action === 'save' && $this->isPost()) { $this->filterQrSave(); }
-        if ($action === 'save_brand_kit' && $this->isPost()) { $this->filterBrandKitSave(); }
+        if ($action === 'save_brand_kit' && $this->isPost()) {
+            if (!$this->entitlements->allows('brand_kit')) { $this->blocked('Brand Kit is available on Pro and Business plans.'); }
+            $this->filterBrandKitSave();
+        }
         if ($action === 'save_rule' && $this->isPost() && !$this->entitlements->allows('smart_destinations')) { $this->blocked('Smart Destinations are not available on the current plan.'); }
         if (in_array($action, ['delete_rule', 'activate_rule', 'deactivate_rule'], true) && !$this->entitlements->allows('smart_destinations')) { $this->blocked('Smart Destination rule actions are not available on the current plan.'); }
     }
@@ -29,11 +32,11 @@ class PlanGuard {
     public function assets(string $hook): void {
         if (!in_array($hook, ['qr-buzz_page_qr-buzz-codes', 'qr-buzz_page_qr-buzz-create', 'qr-buzz_page_qr-buzz-settings'], true)) { return; }
         $locked = [
-            'advancedBranding' => !$this->entitlements->allows('advanced_branding'),
+            'qrStyling' => !$this->entitlements->allows('qr_styling'),
             'logoEmbedding' => !$this->entitlements->allows('logo_embedding'),
             'smartDestinations' => !$this->entitlements->allows('smart_destinations'),
         ];
-        if (!$locked['advancedBranding'] && !$locked['logoEmbedding'] && !$locked['smartDestinations']) { return; }
+        if (!$locked['qrStyling'] && !$locked['logoEmbedding'] && !$locked['smartDestinations']) { return; }
 
         wp_register_style('qrbuzz-plan-guard', false, [], QR_BUZZ_VERSION);
         wp_enqueue_style('qrbuzz-plan-guard');
@@ -53,7 +56,7 @@ class PlanGuard {
             $_POST['fallback_url'] = '';
         }
 
-        if (!$this->entitlements->allows('advanced_branding')) {
+        if (!$this->entitlements->allows('qr_styling')) {
             $_POST['theme'] = 'classic';
             $_POST['foreground_color'] = '#000000';
             $_POST['background_color'] = '#ffffff';
@@ -70,21 +73,18 @@ class PlanGuard {
         }
 
         if (!$this->entitlements->allows('logo_embedding')) {
-            $_POST['logo_attachment_id'] = '0';
-            $_POST['logo_size'] = '20';
+            if (absint($_POST['qr_id'] ?? 0) > 0) {
+                unset($_POST['logo_attachment_id'], $_POST['logo_asset_id'], $_POST['logo_size']);
+            } else {
+                $_POST['logo_attachment_id'] = '0';
+                $_POST['logo_asset_id'] = '0';
+                $_POST['logo_size'] = '20';
+            }
+            unset($_POST['apply_brand_kit']);
         }
     }
 
     private function filterBrandKitSave(): void {
-        if (!$this->entitlements->allows('advanced_branding')) {
-            $_POST['primary_color'] = '#0f766e';
-            $_POST['secondary_color'] = '#1f2937';
-            $_POST['foreground_color'] = '#000000';
-            $_POST['background_color'] = '#ffffff';
-            $_POST['default_theme'] = 'classic';
-            $_POST['default_error_correction'] = 'M';
-        }
-
         if (!$this->entitlements->allows('logo_embedding')) {
             $_POST['default_logo_attachment_id'] = '0';
         }
@@ -130,8 +130,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (row) { row.classList.add('qrbuzz-plan-hidden'); }
     }
 
-    if (locks.advancedBranding) {
-        lockPanel(panelByHeading('Design'), 'Advanced branding is not available on the current plan. QR codes will use the Classic design.');
+    if (locks.qrStyling) {
+        lockPanel(panelByHeading('Design'), 'QR styling is not available on the current plan.');
         ['dot_style', 'finder_style', 'finder_dot_style', 'finder_color', 'caption', 'caption_font_size', 'caption_font_color'].forEach(hideRow);
     }
 
