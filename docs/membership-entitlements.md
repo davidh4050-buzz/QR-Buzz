@@ -15,11 +15,12 @@ Intended for basic testing and small usage.
 - Basic analytics
 - Insights
 - Campaigns
+- Full core QR styling, including colours, module styles, finder styles, and captions
 - Limited QR asset count
 - Limited dynamic QR asset count
 - Limited campaign count
 
-Advanced branding, logo embedding, Smart Destination rules, CSV export, API access, team management, and white label are disabled.
+Brand Kit defaults, advanced branding, logo embedding, Smart Destination rules, CSV export, API access, team management, and white label are disabled.
 
 ### Pro
 
@@ -28,7 +29,8 @@ Intended for individual/site-owner paid-plan behaviour during development.
 - Higher QR and campaign limits
 - Advanced analytics
 - Smart Destinations
-- Advanced branding
+- Full core QR styling
+- Advanced branding and Brand Kit defaults
 - Logo embedding
 - CSV exports
 - API access
@@ -58,4 +60,4 @@ Entitlement decisions can be adjusted using the `qrbuzz_entitlement_allows` filt
 
 ## Notes for testing
 
-After upgrading from v0.8.0, the default workspace starts on the Free plan. To test logo embedding, advanced branding, Smart Destination rules, CSV exports, or REST API data endpoints, switch the workspace to Pro or Business.
+After upgrading from v0.8.0, the default workspace starts on the Free plan. Core QR styling is available on every plan. To test logo embedding, Brand Kit defaults, advanced branding, Smart Destination rules, CSV exports, or REST API data endpoints, switch the workspace to Pro or Business.
