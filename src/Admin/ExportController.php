@@ -64,7 +64,7 @@ class ExportController {
 
     private function safeCell($value): string {
         $value = (string) $value;
-        if ($value !== '' && preg_match('/^[=+\-@]/', $value)) {
+        if ($value !== '' && preg_match('/^[\x00-\x20]*[=+\-@]/', $value)) {
             return "'" . $value;
         }
         return $value;
