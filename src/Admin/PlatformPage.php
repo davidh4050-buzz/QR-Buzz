@@ -128,7 +128,7 @@ class PlatformPage {
         if ($type === 'dynamic_url' && !$this->entitlements->allows('dynamic_qr')) { $this->blocked('Dynamic QR assets are not available on the current plan.'); }
         if (!empty($_POST['logo_attachment_id']) && !$this->entitlements->allows('logo_embedding')) { $this->blocked('Logo embedding is not available on the current plan.'); }
         $usesAdvancedBranding = !empty($_POST['transparent_background']) || (isset($_POST['theme']) && sanitize_key(wp_unslash($_POST['theme'])) !== 'classic');
-        if ($usesAdvancedBranding && !$this->entitlements->allows('advanced_branding')) { $this->blocked('Advanced branding is not available on the current plan.'); }
+        if ($usesAdvancedBranding && !$this->entitlements->allows('qr_styling')) { $this->blocked('QR styling is not available on the current plan.'); }
     }
 
     private function enforceCampaignSave(): void {
