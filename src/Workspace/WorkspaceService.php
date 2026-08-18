@@ -20,6 +20,7 @@ class WorkspaceService {
     }
 
     public function id(): int { return $this->current()->id; }
+    public function isMember(?int $userId = null): bool { $userId = $userId ?: get_current_user_id(); $workspace = $userId > 0 ? $this->repository->forUser($userId) : null; return $workspace !== null && $workspace->id === $this->id(); }
     public function isOwner(?int $userId = null): bool { $userId = $userId ?: get_current_user_id(); return $userId > 0 && $this->current()->ownerUserId === $userId; }
 
     public function changePlan(string $planKey): bool {
