@@ -33,10 +33,11 @@ class PlanGuard {
         if (!in_array($hook, ['qr-buzz_page_qr-buzz-codes', 'qr-buzz_page_qr-buzz-create', 'qr-buzz_page_qr-buzz-settings'], true)) { return; }
         $locked = [
             'qrStyling' => !$this->entitlements->allows('qr_styling'),
+            'brandKit' => !$this->entitlements->allows('brand_kit'),
             'logoEmbedding' => !$this->entitlements->allows('logo_embedding'),
             'smartDestinations' => !$this->entitlements->allows('smart_destinations'),
         ];
-        if (!$locked['qrStyling'] && !$locked['logoEmbedding'] && !$locked['smartDestinations']) { return; }
+        if (!$locked['qrStyling'] && !$locked['brandKit'] && !$locked['logoEmbedding'] && !$locked['smartDestinations']) { return; }
 
         wp_register_style('qrbuzz-plan-guard', false, [], QR_BUZZ_VERSION);
         wp_enqueue_style('qrbuzz-plan-guard');
@@ -135,9 +136,15 @@ document.addEventListener('DOMContentLoaded', function() {
         ['dot_style', 'finder_style', 'finder_dot_style', 'finder_color', 'caption', 'caption_font_size', 'caption_font_color'].forEach(hideRow);
     }
 
+    if (locks.brandKit) {
+        lockPanel(panelByHeading('Brand Kit'), 'Brand Kit defaults are available on Pro and Business plans.');
+        var applyBrandKit = document.querySelector('[name="apply_brand_kit"]');
+        if (applyBrandKit) { applyBrandKit.classList.add('qrbuzz-plan-hidden'); }
+    }
+
     if (locks.logoEmbedding) {
-        hideRow('logo_attachment_id');
-        hideRow('default_logo_attachment_id');
+        lockPanel(rowByInput('logo_attachment_id'), 'Add your logo to branded QR codes with Pro or Business.');
+        lockPanel(rowByInput('default_logo_attachment_id'), 'Logo defaults are available on Pro and Business plans.');
         var logoSize = rowByInput('logo_size');
         if (logoSize) { logoSize.classList.add('qrbuzz-plan-hidden'); }
     }
