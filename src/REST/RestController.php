@@ -54,7 +54,7 @@ class RestController {
     }
 
     public function permission(): bool { return current_user_can('manage_options'); }
-    public function apiPermission(): bool { return current_user_can('manage_options') && $this->entitlements->allows('api_access'); }
+    public function apiPermission(): bool { return is_user_logged_in() && $this->workspaces->isMember() && $this->entitlements->allows('api_access'); }
 
     public function workspace(): WP_REST_Response {
         $workspace = $this->workspaces->current();
