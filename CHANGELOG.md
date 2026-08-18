@@ -1,6 +1,10 @@
 # Changelog
 
 ## 0.9.11
+- Enabled full core QR visual styling for Free accounts
+- Refined branding entitlements to separate QR styling from premium Brand Kit and logo features
+- Added consistent premium gating for logo embedding while preserving existing branded QR codes
+- Aligned QR Studio styling across preview, save, reload, PNG, and SVG output
 - Added Stripe Checkout subscriptions for Pro and Business with existing-customer reuse
 - Added Stripe Customer Portal billing management and plan changes
 - Added Stripe Price-to-QR Buzz plan mapping and webhook-authoritative entitlement changes
