@@ -48,6 +48,7 @@
 }
 
 .qrb-studio-section {
+    background: #f1f5f9;
     border: 1px solid var(--qrb-border);
     border-radius: var(--qrb-radius);
     margin: 0;
