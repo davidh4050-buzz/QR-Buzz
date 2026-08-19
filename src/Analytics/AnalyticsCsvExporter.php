@@ -35,11 +35,16 @@ class AnalyticsCsvExporter {
         $filename = $this->filename($scope, $entity, $range);
         $this->events->record('analytics_exported', ['user_id' => get_current_user_id(), 'workspace_id' => $workspaceId, 'metadata' => ['scope' => $scope, 'entity_id' => $entityId, 'range' => $range->key]]);
 
+        // WordPress, themes, or other plugins may have opened an output buffer.
+        // Discard it before sending download headers so the browser receives a clean CSV response.
+        while (ob_get_level() > 0) { ob_end_clean(); }
         nocache_headers();
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . sanitize_file_name($filename) . '"');
+        header('Content-Transfer-Encoding: binary');
         header('X-Content-Type-Options: nosniff');
         $out = fopen('php://output', 'w');
+        if ($out === false) { wp_die(esc_html__('QR Buzz could not open the CSV download stream.', 'qr-buzz')); }
         fwrite($out, "\xEF\xBB\xBF");
         fputcsv($out, ['Timestamp', 'QR Name', 'QR ID', 'Campaign', 'QR Type', 'Destination', 'Device', 'Browser', 'Referrer / Source', 'Country', 'Resolved Destination', 'Resolution Reason', 'Scan Status']);
 
