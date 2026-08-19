@@ -20,6 +20,17 @@ class AnalyticsCsvExporter {
         $this->events = $events ?: new PlatformEventRepository();
     }
 
+    public function init(): void {
+        add_action('admin_post_qrbuzz_analytics_export', [$this, 'handle']);
+    }
+
+    public function handle(): void {
+        $scope = sanitize_key((string) ($_GET['scope'] ?? 'workspace'));
+        $entityId = absint($_GET['entity_id'] ?? 0);
+        $rangeKey = sanitize_key((string) ($_GET['range'] ?? '30days'));
+        $this->export($scope, $entityId, $rangeKey);
+    }
+
     public function export(string $scope, int $entityId, string $rangeKey): void {
         if (!is_user_logged_in()) { auth_redirect(); }
         check_admin_referer('qrbuzz_analytics_export');
@@ -30,7 +41,7 @@ class AnalyticsCsvExporter {
         $scope = in_array($scope, ['workspace', 'qr', 'campaign'], true) ? $scope : 'workspace';
         $workspaceId = $this->workspaces->id();
         $entity = $this->validateEntity($scope, $entityId, $workspaceId);
-        if ($scope !== 'workspace' && !$entity) { wp_die(esc_html__('Analytics export was not found in this workspace.', 'qr-buzz'), 404); }
+        if ($scope !== 'workspace' && !$entity) { wp_die(esc_html__('Analytics export was not found in this workspace.', 'qr-buzz'), '', ['response' => 404]); }
         $range = $this->boundedRange(DateRange::fromRequest($rangeKey));
         $filename = $this->filename($scope, $entity, $range);
         $this->events->record('analytics_exported', ['user_id' => get_current_user_id(), 'workspace_id' => $workspaceId, 'metadata' => ['scope' => $scope, 'entity_id' => $entityId, 'range' => $range->key]]);
@@ -55,6 +66,12 @@ class AnalyticsCsvExporter {
             $sql = 'SELECT s.scanned_at, s.user_agent, s.referrer, s.country, s.destination_resolved, s.resolution_reason, s.scan_status, q.id AS qr_id, q.name AS qr_name, q.type AS qr_type, q.destination_url, c.name AS campaign_name FROM ' . Schema::scansTable() . ' s INNER JOIN ' . Schema::qrcodesTable() . ' q ON q.id = s.qr_id LEFT JOIN ' . Schema::campaignsTable() . ' c ON c.id = q.campaign_id ' . $where . ' ORDER BY s.id ASC LIMIT %d OFFSET %d';
             $params[] = $batchSize; $params[] = $offset;
             $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params));
+            if ($wpdb->last_error !== '') {
+                fclose($out);
+                @unlink($tempFile);
+                $this->events->record('analytics_export_failed', ['user_id' => get_current_user_id(), 'workspace_id' => $workspaceId, 'metadata' => ['scope' => $scope, 'entity_id' => $entityId, 'reason' => 'database_query']]);
+                wp_die(esc_html__('QR Buzz could not read the analytics data for this export. Please contact support.', 'qr-buzz'), '', ['response' => 500]);
+            }
             foreach ($rows ?: [] as $row) {
                 $userAgent = (string) $row->user_agent;
                 $values = [
