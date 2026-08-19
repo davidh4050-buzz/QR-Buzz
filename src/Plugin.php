@@ -10,6 +10,7 @@ use QRBuzz\Admin\PlanGuard;
 use QRBuzz\Admin\PlatformPage;
 use QRBuzz\Admin\QRPreviewController;
 use QRBuzz\App\HostedAppController;
+use QRBuzz\Analytics\AnalyticsCsvExporter;
 use QRBuzz\Assets\AssetAjaxController;
 use QRBuzz\Billing\WebhookController;
 use QRBuzz\Core\Requirements;
@@ -34,12 +35,13 @@ class Plugin {
         (new RestController())->init();
         (new WebhookController())->init();
         (new HostedAppController())->init();
+        (new AnalyticsCsvExporter())->init();
         (new PlatformErrorHandler())->init();
         (new PlatformAdminController())->init();
         add_filter('show_admin_bar', function(bool $show): bool { return current_user_can('qrbuzz_manage_platform') ? $show : false; });
         add_action('admin_init', function(): void {
             $action = sanitize_key((string) ($_REQUEST['action'] ?? ''));
-            $customerActions = ['qrbuzz_download_png', 'qrbuzz_download_svg'];
+            $customerActions = ['qrbuzz_download_png', 'qrbuzz_download_svg', 'qrbuzz_analytics_export'];
             if (wp_doing_ajax() || in_array($action, $customerActions, true) || current_user_can('qrbuzz_manage_platform') || !is_user_logged_in()) { return; }
             $user = wp_get_current_user();
             if (in_array('qrbuzz_customer', (array) $user->roles, true)) { wp_safe_redirect(home_url('/app/dashboard')); exit; }
