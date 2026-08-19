@@ -544,8 +544,13 @@ class HostedAppController {
 
     private function analyticsExportAction(string $scope, int $entityId, string $rangeKey): string {
         if (!$this->entitlements->allows('csv_export')) { return '<a class="qrb-button" href="' . esc_url(home_url('/app/analytics?upgrade=csv_export')) . '">Export CSV 🔒</a>'; }
-        $path = $scope === 'workspace' ? '/app/analytics/export' : ($scope === 'campaign' ? '/app/campaigns/' . $entityId . '/analytics/export' : '/app/qr/' . $entityId . '/analytics/export');
-        $url = wp_nonce_url(add_query_arg('range', sanitize_key($rangeKey), home_url($path)), 'qrbuzz_analytics_export');
+        $url = add_query_arg([
+            'action' => 'qrbuzz_analytics_export',
+            'scope' => in_array($scope, ['workspace', 'qr', 'campaign'], true) ? $scope : 'workspace',
+            'entity_id' => absint($entityId),
+            'range' => sanitize_key($rangeKey),
+        ], admin_url('admin-post.php'));
+        $url = wp_nonce_url($url, 'qrbuzz_analytics_export');
         return '<a class="qrb-button qrb-button-primary" href="' . esc_url($url) . '">Export CSV</a>';
     }
 
