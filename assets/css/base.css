@@ -1,0 +1,8 @@
+.qrb-body ::selection {
+    background: rgba(15, 118, 110, 0.18);
+}
+
+.qrb-body small {
+    color: var(--qrb-muted);
+    font-size: var(--qrb-font-size-xs);
+}

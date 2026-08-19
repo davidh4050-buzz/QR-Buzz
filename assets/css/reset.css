@@ -1,0 +1,30 @@
+.qrb-body,
+.qrb-body * {
+    box-sizing: border-box;
+}
+
+.qrb-body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--qrb-bg);
+    color: var(--qrb-text);
+    font-family: var(--qrb-font);
+    font-size: var(--qrb-font-size-base);
+    line-height: var(--qrb-line-base);
+}
+
+.qrb-body a {
+    color: inherit;
+}
+
+.qrb-body img,
+.qrb-body svg {
+    max-width: 100%;
+}
+
+.qrb-body button,
+.qrb-body input,
+.qrb-body select,
+.qrb-body textarea {
+    font: inherit;
+}

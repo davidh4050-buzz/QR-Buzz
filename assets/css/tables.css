@@ -1,0 +1,47 @@
+.qrb-table-wrap {
+    overflow-x: auto;
+}
+
+.qrb-table {
+    background: #fff;
+    border-collapse: collapse;
+    border: 1px solid var(--qrb-border);
+    border-radius: var(--qrb-radius);
+    overflow: hidden;
+    width: 100%;
+}
+
+.qrb-table th,
+.qrb-table td {
+    border-bottom: 1px solid var(--qrb-border);
+    padding: 0.85rem;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.qrb-table th {
+    background: #f8fafc;
+    color: var(--qrb-muted);
+    font-size: var(--qrb-font-size-xs);
+    font-weight: var(--qrb-weight-bold);
+    text-transform: uppercase;
+}
+
+.qrb-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.qrb-table tbody tr {
+    transition: background var(--qrb-transition);
+}
+
+.qrb-table tbody tr:hover,
+.qrb-table tbody tr:focus-within {
+    background: #f8fafc;
+}
+
+.qrb-table a {
+    color: var(--qrb-primary);
+    font-weight: var(--qrb-weight-medium);
+    text-decoration: none;
+}

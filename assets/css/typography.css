@@ -1,0 +1,23 @@
+.qrb-body h1,
+.qrb-body h2,
+.qrb-body h3 {
+    color: var(--qrb-text);
+    font-weight: var(--qrb-weight-bold);
+    line-height: var(--qrb-line-tight);
+}
+
+.qrb-body h1 {
+    font-size: var(--qrb-font-size-2xl);
+}
+
+.qrb-body h2 {
+    font-size: var(--qrb-font-size-xl);
+}
+
+.qrb-body h3 {
+    font-size: var(--qrb-font-size-lg);
+}
+
+.qrb-body p {
+    margin-top: 0;
+}
