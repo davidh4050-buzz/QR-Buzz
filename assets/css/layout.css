@@ -22,7 +22,7 @@
 }
 
 .qrb-sidebar {
-    background: var(--qrb-sidebar);
+    background: #fff;
     color: #3f4a52;
     grid-column: 1;
     grid-row: 2;
@@ -43,7 +43,7 @@
 }
 
 .qrb-brand-logo {
-    background: #fff;
+    background: transparent;
     border-radius: var(--qrb-radius-sm);
     padding: 0.45rem;
 }
