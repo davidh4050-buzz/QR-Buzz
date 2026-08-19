@@ -641,7 +641,7 @@ class HostedAppController {
             $html .= '<p><strong>' . esc_html($periodLabel) . ':</strong> ' . esc_html($period) . '</p>';
         }
         if (!empty($subscription['customer_id'])) {
-            $html .= '<form method="post">' . wp_nonce_field('qrbuzz_app_billing', 'nonce', true, false) . '<input type="hidden" name="billing_action" value="portal"><button class="qrb-button qrb-button-primary">Manage billing</button></form>';
+            $html .= '<form method="post">' . wp_nonce_field('qrbuzz_app_billing', 'nonce', true, false) . '<input type="hidden" name="billing_action" value="portal"><button class="qrb-button qrb-button-primary">Manage billing &amp; invoices</button></form><p class="qrb-help">Open Stripe’s secure portal to update payment details, change or cancel your plan, and download invoices.</p>';
         } else {
             $html .= '<div class="qrb-actions">' . $this->upgradeForm('pro') . $this->upgradeForm('business') . '</div>';
         }
@@ -886,7 +886,7 @@ class HostedAppController {
     private function barChart(array $series): string { $max = max(1, ...array_map(static fn($r): int => (int) $r['scans'], $series)); $html = '<div class="qrb-bars">'; foreach ($series as $row) { $height = max(4, (int) round(((int) $row['scans'] / $max) * 90)); $html .= '<span title="' . esc_attr($row['date'] . ': ' . $row['scans']) . '" style="height:' . esc_attr((string) $height) . 'px"></span>'; } return $html . '</div>'; }
     private function breakdownTable(array $rows): string { if (!$rows) { return '<p>No data yet.</p>'; } $html = '<table class="qrb-table"><tbody>'; foreach ($rows as $row) { $html .= '<tr><td>' . esc_html((string) $row['label']) . '</td><td>' . esc_html((string) $row['count']) . '</td></tr>'; } return $html . '</tbody></table>'; }
     private function recentScansTable(array $rows): string { if (!$rows) { return '<p>No scans yet.</p>'; } $html = '<table class="qrb-table"><thead><tr><th>When</th><th>Referrer</th><th>User agent</th></tr></thead><tbody>'; foreach ($rows as $row) { $html .= '<tr><td>' . esc_html((string) $row->scanned_at) . '</td><td>' . esc_html($row->referrer ?: 'Direct / unknown') . '</td><td>' . esc_html((string) ($row->user_agent_summary ?? 'Unknown')) . '</td></tr>'; } return $html . '</tbody></table>'; }
-    private function topQrTable(array $rows): string { if (!$rows) { return '<p>No scan data yet.</p>'; } $html = '<table class="qrb-table"><thead><tr><th>QR</th><th>Scans</th><th>Last scan</th></tr></thead><tbody>'; foreach ($rows as $row) { $html .= '<tr><td><a href="' . esc_url(home_url('/app/qr/' . $row->id)) . '">' . esc_html($row->name) . '</a></td><td>' . esc_html((string) $row->scan_count) . '</td><td>' . esc_html($row->last_scan ?: '-') . '</td></tr>'; } return $html . '</tbody></table>'; }
+    private function topQrTable(array $rows): string { if (!$rows) { return '<p>No scan data yet.</p>'; } $html = '<table class="qrb-table"><thead><tr><th>QR</th><th>Scans</th><th>Last scan</th></tr></thead><tbody>'; foreach ($rows as $row) { $html .= '<tr><td><a href="' . esc_url(home_url('/app/qr/' . $row->id) . '#analytics') . '">' . esc_html($row->name) . '</a></td><td>' . esc_html((string) $row->scan_count) . '</td><td>' . esc_html($row->last_scan ?: '-') . '</td></tr>'; } return $html . '</tbody></table>'; }
 
     private function enqueueAppAssets(): void {}
     private function headAssets(): string { remove_action('wp_print_styles', 'print_emoji_styles'); ob_start(); wp_print_styles(); wp_print_head_scripts(); return (string) ob_get_clean(); }
