@@ -656,13 +656,13 @@ class HostedAppController {
 
     private function planCards(bool $authenticated): string {
         $html = '<div class="qrb-plan-grid">';
+        $currentPlanKey = $authenticated ? $this->entitlements->effectivePlanKey() : 'free';
         foreach ($this->billingPlans->plans() as $key => $plan) {
             $html .= '<article class="qrb-card"><h2>' . esc_html($plan['label']) . '</h2><p><strong>' . esc_html($plan['display_price']) . '</strong>' . ($plan['interval'] ? ' / ' . esc_html($plan['interval']) : '') . '</p><p>' . esc_html($plan['description']) . '</p><ul>';
             foreach ($plan['features'] as $feature) { $html .= '<li>' . esc_html($feature) . '</li>'; }
             $html .= '</ul>';
             if ($authenticated) {
-                if ($key === 'free') { $html .= '<span class="qrb-badge">Free forever</span>'; }
-                else { $html .= $this->upgradeForm($key); }
+                $html .= $this->planCardAction($key, $currentPlanKey);
             } else {
                 $url = $key === 'free' ? '/register' : '/register?plan=' . rawurlencode($key);
                 $label = $key === 'free' ? 'Get started free' : 'Choose ' . $plan['label'];
@@ -673,7 +673,32 @@ class HostedAppController {
         return $html . '</div>';
     }
 
-    private function upgradeForm(string $planKey): string {
+    private function planCardAction(string $targetPlanKey, string $currentPlanKey): string {
+        $ranks = ['free' => 0, 'pro' => 1, 'business' => 2];
+        $targetPlanKey = isset($ranks[$targetPlanKey]) ? $targetPlanKey : 'free';
+        $currentPlanKey = isset($ranks[$currentPlanKey]) ? $currentPlanKey : 'free';
+        $existing = $this->subscriptions->forWorkspace($this->workspaces->id());
+
+        if ($targetPlanKey === $currentPlanKey) {
+            if ($existing && !empty($existing->stripe_customer_id)) {
+                return '<form method="post">' . wp_nonce_field('qrbuzz_app_billing', 'nonce', true, false) . '<input type="hidden" name="billing_action" value="portal"><button class="qrb-button">Manage plan</button></form>';
+            }
+            return '<button class="qrb-button" type="button" disabled aria-disabled="true">Manage plan</button>';
+        }
+
+        $direction = $ranks[$targetPlanKey] > $ranks[$currentPlanKey] ? 'Upgrade' : 'Downgrade';
+        $label = $direction . ' to ' . $this->plans->label($targetPlanKey);
+        if ($existing && !empty($existing->stripe_customer_id)) {
+            return '<form method="post">' . wp_nonce_field('qrbuzz_app_billing', 'nonce', true, false) . '<input type="hidden" name="billing_action" value="portal"><button class="qrb-button">' . esc_html($label) . '</button></form>';
+        }
+        if ($targetPlanKey === 'free') {
+            return '<button class="qrb-button" type="button" disabled aria-disabled="true">' . esc_html($label) . '</button>';
+        }
+
+        return $this->upgradeForm($targetPlanKey, $label);
+    }
+
+    private function upgradeForm(string $planKey, string $buttonLabel = ''): string {
         $planKey = in_array($planKey, ['pro', 'business'], true) ? $planKey : 'pro';
         $existing = $this->subscriptions->forWorkspace($this->workspaces->id());
         if ($existing && !empty($existing->stripe_customer_id)) {
@@ -681,7 +706,8 @@ class HostedAppController {
         }
         $returnTo = sanitize_key((string) ($_GET['return_to'] ?? 'billing'));
         if (!in_array($returnTo, ['billing', 'analytics'], true)) { $returnTo = 'billing'; }
-        return '<form method="post">' . wp_nonce_field('qrbuzz_app_billing', 'nonce', true, false) . '<input type="hidden" name="billing_action" value="checkout"><input type="hidden" name="plan_key" value="' . esc_attr($planKey) . '"><input type="hidden" name="return_to" value="' . esc_attr($returnTo) . '"><button class="qrb-button qrb-button-primary">Upgrade to ' . esc_html($this->plans->label($planKey)) . '</button></form>';
+        $buttonLabel = $buttonLabel !== '' ? $buttonLabel : 'Upgrade to ' . $this->plans->label($planKey);
+        return '<form method="post">' . wp_nonce_field('qrbuzz_app_billing', 'nonce', true, false) . '<input type="hidden" name="billing_action" value="checkout"><input type="hidden" name="plan_key" value="' . esc_attr($planKey) . '"><input type="hidden" name="return_to" value="' . esc_attr($returnTo) . '"><button class="qrb-button qrb-button-primary">' . esc_html($buttonLabel) . '</button></form>';
     }
 
     private function registerForm(): string {
